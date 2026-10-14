@@ -1,6 +1,5 @@
 # 엔진이 모드를 로드할 때 생성하는 타입
 .claude-plugin/types/
 
-# README 동작 장면(demo/)의 의존성과 렌더 중간물
-demo/node_modules/
-demo/out/
+# README 장면을 그리는 로컬 Remotion 프로젝트. 렌더링 결과(.github/assets/)만 커밋한다.
+demo/
