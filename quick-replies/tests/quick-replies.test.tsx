@@ -103,6 +103,49 @@ describe('quick-replies', () => {
     await ui.unmount()
   })
 
+  test('/로 시작하는 프리셋은 스킬이나 슬래시 명령으로 실행하고, 없는 명령이면 알림만 띄운다', async ($, on) => {
+    inRepo(on, '/repo/one', {
+      global: [
+        { id: 'skill', text: '/ux-writing README 다듬어줘' },
+        { id: 'bare', text: '/compact' },
+        { id: 'unknown', text: '/없는명령 해줘' },
+      ],
+    })
+    const ran: { command: string; args: string }[] = []
+    const sent: string[] = []
+    const toasts: string[] = []
+    on('command.list', () => ({
+      value: [
+        { name: 'ux-writing', description: '', source: 'user' },
+        { name: 'compact', description: '', source: 'builtin' },
+      ] as never,
+    }))
+    on('command.run', (_$, e) => {
+      ran.push({ command: e.command, args: e.args })
+      return { text: '' }
+    })
+    on('prompt.submit', (_$, e) => {
+      sent.push(e.text)
+      return { text: e.text }
+    })
+    on('ui.toast', (_$, e) => {
+      toasts.push(JSON.stringify(e))
+      return { value: undefined } as never
+    })
+
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    await ui.press({ key: 'send:skill' })
+    await ui.press({ key: 'send:bare' })
+    await ui.press({ key: 'send:unknown' })
+    expect(ran).toEqual([
+      { command: 'ux-writing', args: 'README 다듬어줘' },
+      { command: 'compact', args: '' },
+    ])
+    expect(sent).toEqual([])
+    expect(toasts.join(' ')).toContain('/없는명령')
+    await ui.unmount()
+  })
+
   test('설문이 띠를 차지하면 비켜 준다', async ($, on) => {
     inRepo(on, '/repo/one')
     const ui = await $.ui.mount({

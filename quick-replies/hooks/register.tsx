@@ -62,6 +62,29 @@ async function save($: EngineInterface, change: (presets: Presets) => Presets): 
   await $.store.set(projectKey(next.root), next.project)
 }
 
+// "/ux-writing 문구 다듬어줘"처럼 /로 시작하는 프리셋은 슬래시 명령(스킬 포함)으로 실행한다.
+// 이름과 나머지를 나눈다. 명령이 아니면 null.
+export function parseCommand(text: string): { command: string; args: string } | null {
+  const match = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/.exec(text.trim())
+  return match === null ? null : { command: match[1] ?? '', args: (match[2] ?? '').trim() }
+}
+
+// 프리셋 하나를 보낸다. 슬래시 명령은 사람이 입력한 것처럼 실행한다.
+// /로 시작하는 글은 일반 프롬프트로 보낼 수 없으므로, 없는 명령이면 알림만 띄운다.
+async function send($: EngineInterface, text: string): Promise<void> {
+  const command = parseCommand(text)
+  if (command === null) {
+    await $.prompt.submit({ text, asUser: true })
+    return
+  }
+  const known = (await $.command.list()).some(c => c.name === command.command)
+  if (!known) {
+    $.ui.toast(`/${command.command} 명령이나 스킬을 찾지 못했어요`)
+    return
+  }
+  await $.command.run(command)
+}
+
 const without = (list: Reply[], id: string) => list.filter(r => r.id !== id)
 const renamed = (list: Reply[], id: string, text: string) => list.map(r => (r.id === id ? { ...r, text } : r))
 
@@ -94,7 +117,7 @@ export const register: Register = on => {
             plain
             {...(hotkey <= LAST_HOTKEY ? { hotkey: String(hotkey) } : {})}
             onPress={() => {
-              void $.prompt.submit({ text: reply.text, asUser: true })
+              void send($, reply.text)
             }}
           />
         )
