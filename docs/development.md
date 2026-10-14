@@ -105,7 +105,7 @@ claude plugin test ./mods/next-prompts
 │   └── key-assist/
 │       └── hooks/
 │           └── register.ts       # 붙여넣은 파일 이름을 경로로 바꾸고, Cmd+Z 키 설정을 한 번 추가
-├── .github/assets/               # README 배너와 기능별 장면(다크, 라이트)
+├── .github/assets/               # README 로고와 기능별 장면(다크, 라이트)
 └── docs/
     ├── next-prompts.md           # 모드별 문서
     ├── quick-replies.md

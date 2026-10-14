@@ -1,10 +1,10 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./.github/assets/banner-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="./.github/assets/banner-light.png">
-    <img alt="claude-code-mods: Claude Code 입력창 주변을 손보는 모드 네 가지" src="./.github/assets/banner-light.png" width="100%">
-  </picture>
+  <img alt="claude-code-mods 로고" src="./.github/assets/logo.png" width="160">
 </p>
+
+<h1 align="center">claude-code-mods</h1>
+
+<p align="center">Claude Code 입력창 주변에 기능을 더하는 모드 모음</p>
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
