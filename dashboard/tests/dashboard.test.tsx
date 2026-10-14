@@ -275,4 +275,14 @@ describe('dashboard', () => {
     expect(calm.spine).toBe(THEMES.everforest.accent)
     expect(busy.spine).toBe(THEMES.everforest.high)
   })
+
+  test('0.4.0 전에 저장된 모양 선택은 무시하고 gauge로 그린다', async ($, on) => {
+    session(on, 'default')
+    on('store.get', { key: 'style' } as never, () => ({ value: 'calm' }) as never)
+    await $.session.start({ source: 'startup', cwd: '/work/repo' } as never)
+    const ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
+    expect((await ui.findAll({ type: 'Text', text: 'ctx ' })).find(f => f.text === 'ctx ')).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /│/ })).toBeUndefined()
+    await ui.unmount()
+  })
 })

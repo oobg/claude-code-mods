@@ -20,7 +20,8 @@ const style = atom({ plugin: 'dashboard', key: 'style' } as const, null as Style
 const fableWeek = atom({ plugin: 'dashboard', key: 'fableWeek' } as const, null as number | null)
 const theme = atom({ plugin: 'dashboard', key: 'theme' } as const, null as Theme | null)
 
-const STYLE_KEY = 'style'
+// 0.4.0에서 기본 모양이 gauge로 바뀌었다. 그 전 버전에서 고른 모양('style')은 무시하고 새 키로 저장한다.
+const STYLE_KEY = 'style.v2'
 const FABLE_KEY = 'fableWeek'
 const STYLE_COMMAND = 'dashboard-style'
 const THEME_KEY = 'theme'
@@ -167,42 +168,55 @@ async function render($: EngineInterface): Promise<void> {
   await update($, permissionMode, () => mode)
 }
 
+// 세션마다 한 번: 저장된 선택을 읽고, 명령을 등록하고, 타이머를 건다.
+// /reload-plugins는 세션 시작을 다시 알리지 않고 타이머도 지우므로, 다음 메시지나 턴 끝에서 다시 부른다.
+let started = false
+
+async function start($: EngineInterface): Promise<void> {
+  if (started) {
+    return
+  }
+  started = true
+  const [chosen, palette, fable] = [await currentStyle($), await currentTheme($), await currentFable($)]
+  await update($, style, () => chosen)
+  await update($, theme, () => palette)
+  await update($, fableWeek, () => fable)
+  await refresh($)
+  // 명령 등록이 막혀도 대시보드는 그린다.
+  await $.command
+    .register({
+      name: STYLE_COMMAND,
+      description: '입력창 아래 대시보드 모양을 바꿔요. 이름 없이 실행하면 다음 모양으로 넘어가요',
+      argumentHint: `[${STYLES.join('|')}]`,
+      immediate: true,
+    })
+    .catch(() => {})
+  await $.command
+    .register({
+      name: THEME_COMMAND,
+      description: '입력창 아래 대시보드 색을 바꿔요. 이름 없이 실행하면 다음 색으로 넘어가요',
+      argumentHint: `[${THEME_NAMES.join('|')}]`,
+      immediate: true,
+    })
+    .catch(() => {})
+  void pollFable($)
+  $.clock.every(USAGE_EVERY_MS, () => {
+    void pollFable($)
+  })
+  $.clock.every(REFRESH_MS, () => {
+    void refresh($)
+  })
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
-    const [chosen, palette, fable] = [await currentStyle($), await currentTheme($), await currentFable($)]
-    await update($, style, () => chosen)
-    await update($, theme, () => palette)
-    await update($, fableWeek, () => fable)
-    await refresh($)
-    // 명령 등록이 막혀도 대시보드는 그린다.
-    await $.command
-      .register({
-        name: STYLE_COMMAND,
-        description: '입력창 아래 대시보드 모양을 바꿔요. 이름 없이 실행하면 다음 모양으로 넘어가요',
-        argumentHint: `[${STYLES.join('|')}]`,
-        immediate: true,
-      })
-      .catch(() => {})
-    await $.command
-      .register({
-        name: THEME_COMMAND,
-        description: '입력창 아래 대시보드 색을 바꿔요. 이름 없이 실행하면 다음 색으로 넘어가요',
-        argumentHint: `[${THEME_NAMES.join('|')}]`,
-        immediate: true,
-      })
-      .catch(() => {})
-    void pollFable($)
-    $.clock.every(USAGE_EVERY_MS, () => {
-      void pollFable($)
-    })
-    $.clock.every(REFRESH_MS, () => {
-      void refresh($)
-    })
+    await start($)
     return result
   })
   on('prompt.submit', async ($, e, next) => {
     const result = await next(e)
+    await start($)
     await refresh($)
     return result
   })
@@ -217,6 +231,7 @@ export const register: Register = on => {
   })
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
+    await start($)
     await refresh($)
     return result
   })
