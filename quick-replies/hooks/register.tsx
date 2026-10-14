@@ -324,7 +324,7 @@ export const register: Register = on => {
             </Box>
           ))
         )
-      // 0은 다음 제안 줄까지 함께 접고 편다. next-prompts가 이 값을 읽는다.
+      // 0은 프리셋 줄만 접고 편다. 다음 제안은 늘 전체 문구로 보인다.
       const rows = (
         <Box flexDirection="column">
           <Box flexDirection="row" columnGap={2}>

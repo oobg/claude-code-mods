@@ -9,8 +9,6 @@ import { MIN_ANSWER_CHARS, SYSTEM, buildPrompt, parseSuggestions } from './sugge
 const ORDER = 10
 
 const suggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as const, [] as Suggestions)
-// 접기는 quick-replies의 0이 정한다. quick-replies가 없으면 늘 펼친다.
-const COMPACT = { plugin: 'quick-replies', key: 'compact' } as const
 const lastPrompt = atom({ plugin: 'next-prompts', key: 'lastPrompt' } as const, '')
 
 // 제안을 만드는 동안 사용자가 새 프롬프트를 보냈으면, 늦게 온 제안은 버린다.
@@ -60,20 +58,19 @@ export const register: Register = on => {
       return next(e)
     }
     const below = await next(e)
-    // 0.2.x가 남긴 문자열 제안은 제목이 없으니 버린다.
-    const list = (await read($, suggestions)).filter(item => typeof item === 'object')
+    // 0.3~0.4가 남긴 제목 붙은 제안({ title, text })은 버린다.
+    const list = (await read($, suggestions)).filter(item => typeof item === 'string')
     if (e.props.isWorking || list.length === 0) {
       return withBandSection(below, 'next-prompts', ORDER, null)
     }
 
-    const folded = (await read($, COMPACT)) === true
     const { Box, Button, Text } = $.ui.resolve(e)
     const clear = () => update($, suggestions, () => [])
 
     // 제안 하나는 버튼 두 개다. 번호(`1:`)는 숫자 1~3을 누르거나 클릭하면 입력창에 초안으로 넣기만 하고,
     // 문구는 클릭하면 바로 보낸다. 버튼은 무엇으로 눌렸는지 알 수 없어 둘로 나눴다.
-    // 0은 quick-replies가 맡아 이 줄까지 함께 접고 편다. 닫기는 클릭으로만 한다.
-    const pick = (item: Suggestions[number], i: number) => (
+    // 제안은 접지 않고 늘 전체 문구로 보인다(quick-replies의 0은 프리셋만 접는다). 닫기는 클릭으로만 한다.
+    const pick = (text: string, i: number) => (
       <Box key={`item:${i + 1}`} flexDirection="row">
         <Button
           key={`pick:${i + 1}`}
@@ -81,45 +78,36 @@ export const register: Register = on => {
           hotkey={String(i + 1)}
           plain
           onPress={async () => {
-            await $.prompt.fill({ text: item.text })
+            await $.prompt.fill({ text })
             await clear()
           }}
         />
         <Button
           key={`go:${i + 1}`}
-          label={folded ? item.title : item.text}
+          label={text}
           plain
           onPress={async () => {
             // 이 모드가 보낸 프롬프트에는 자기 prompt.submit 훅이 돌지 않으니, 그 일을 여기서 한다.
             generation += 1
             await clear()
-            await update($, lastPrompt, () => item.text)
-            await $.prompt.submit({ text: item.text, asUser: true })
+            await update($, lastPrompt, () => text)
+            await $.prompt.submit({ text, asUser: true })
           }}
         />
       </Box>
     )
-    // 펼치면 제목 줄 다음에 제안을 한 줄에 하나씩, 접으면 `1: 제목 | 2: 제목`으로 한 줄에 잇는다.
+    // 제목 줄 다음에 제안을 한 줄에 하나씩 둔다.
     const row = (
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={2}>
           <Text dimColor>다음 제안</Text>
           <Button key="dismiss" label="닫기" plain dimColor role="dismiss" onPress={clear} />
         </Box>
-        {folded ? (
-          <Box key="picks" flexDirection="row" flexWrap="wrap" columnGap={1} paddingLeft={2}>
-            {list.flatMap((item, i) => [
-              ...(i > 0 ? [<Text key={`sep:${i}`} dimColor>|</Text>] : []),
-              pick(item, i),
-            ])}
+        {list.map((text, i) => (
+          <Box key={`line:${i + 1}`} paddingLeft={2}>
+            {pick(text, i)}
           </Box>
-        ) : (
-          list.map((item, i) => (
-            <Box key={`line:${i + 1}`} paddingLeft={2}>
-              {pick(item, i)}
-            </Box>
-          ))
-        )}
+        ))}
       </Box>
     )
     return withBandSection(below, 'next-prompts', ORDER, row)

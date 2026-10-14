@@ -23,7 +23,7 @@ declare module 'claude-code' {
       globalReplies: Reply[] | null
       projectReplies: Reply[] | null
       mode: Mode
-      /** 띠를 접어 한 범위를 한 줄에 제목만으로 보이는가. next-prompts도 이 값을 읽어 함께 접는다. 읽기 전에는 null. */
+      /** 프리셋 줄을 접어 한 범위를 한 줄에 제목만으로 보이는가. 다음 제안은 접지 않는다. 읽기 전에는 null. */
       compact: boolean | null
     }
   }
