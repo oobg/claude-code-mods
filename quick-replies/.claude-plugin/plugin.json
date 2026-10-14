@@ -1,7 +1,7 @@
 {
   "name": "quick-replies",
-  "version": "0.6.0",
-  "description": "전역과 프로젝트별 프리셋 문구를 입력창 위 버튼으로 두고, 누르거나 숫자 4~9로 바로 보낸다",
+  "version": "0.6.1",
+  "description": "전역과 로컬(저장소별) 프리셋 문구를 입력창 위 버튼으로 두고, 누르거나 숫자로 바로 보낸다. /스킬도 실행한다",
   "types": "./types/index.d.ts",
   "license": "MIT",
   "author": {

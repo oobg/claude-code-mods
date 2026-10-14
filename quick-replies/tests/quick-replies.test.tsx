@@ -57,7 +57,7 @@ describe('quick-replies', () => {
     expect((await ui.find({ key: 'add-global' }))?.props?.hotkey).toBe('a')
     expect((await ui.find({ key: 'select:default-0' }))?.props?.hotkey).toBe('1')
 
-    // a: 전역에 추가, p: 이 프로젝트에 추가
+    // a: 전역에 추가, l: 로컬에 추가
     await ui.press({ key: 'add-global' })
     await ui.input({ key: 'input', text: '커밋해줘' })
     await ui.press({ key: 'add-project' })
@@ -74,17 +74,17 @@ describe('quick-replies', () => {
     await ui.press({ key: 'act-delete' })
     expect(await ui.find({ key: 'select:default-1' })).toBeUndefined()
 
-    // 1을 골라 j로 아래로, m으로 이 프로젝트로
+    // 1을 골라 j로 아래로, m으로 로컬로
     await ui.press({ key: 'select:default-0' })
     await ui.press({ key: 'act-down' })
     await ui.press({ key: 'act-move' })
 
-    // q: 완료. 전역: 커밋해줘 / 이 프로젝트: /ux-writing…, 어디까지 했어?
+    // q: 완료. 전역: 커밋해줘 / 로컬: /ux-writing…, 어디까지 했어?
     await ui.press({ key: 'done' })
     expect((await ui.find({ type: 'Button', text: '커밋해줘' }))?.props?.hotkey).toBe('1')
     expect((await ui.find({ type: 'Button', text: '/ux-writing 문구 다듬어줘' }))?.props?.hotkey).toBe('2')
     expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('3')
-    expect(await ui.find({ type: 'Text', text: '이 프로젝트' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '로컬' })).toBeDefined()
     await ui.unmount()
   })
 
@@ -115,7 +115,7 @@ describe('quick-replies', () => {
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
     expect(await ui.find({ type: 'Button', text: '전역 문구' })).toBeDefined()
     expect(await ui.find({ type: 'Button', text: '저장소 하나 전용' })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: '이 프로젝트' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: '로컬' })).toBeUndefined()
     await ui.unmount()
   })
 

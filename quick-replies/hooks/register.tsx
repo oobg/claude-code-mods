@@ -8,10 +8,8 @@ export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞�
 
 // 띠 안의 순서. next-prompts의 다음 제안(10) 아래에 온다.
 const ORDER = 20
-// 줄 제목("프리셋", "이 프로젝트") 칸의 폭. 두 줄의 버튼이 같은 열에서 시작한다.
-const LABEL_WIDTH = 10
-// 스킬, 슬래시 명령 프리셋의 명령 부분 색. 대시보드의 모델 이름과 같은 파스텔 하늘색이다.
-const ACCENT = 'ansi256(117)'
+// 스킬, 슬래시 명령 프리셋의 명령 부분 색. 버튼 번호와 입력창의 /명령에 Claude Code가 쓰는 테마 색과 같다.
+const ACCENT = 'suggestion'
 
 const repo = atom({ plugin: 'quick-replies', key: 'repo' } as const, null)
 const globalReplies = atom({ plugin: 'quick-replies', key: 'globalReplies' } as const, null)
@@ -127,7 +125,7 @@ async function removePreset($: EngineInterface, id: string): Promise<void> {
   await update($, mode, m => (m.kind === 'edit' ? { ...m, selected: null } : m))
 }
 
-// 전역과 이 프로젝트 사이로 옮긴다. 옮긴 프리셋은 그쪽 목록 맨 뒤에 붙는다.
+// 전역과 로컬 사이로 옮긴다. 옮긴 프리셋은 그쪽 목록 맨 뒤에 붙는다.
 async function movePreset($: EngineInterface, id: string): Promise<void> {
   await save($, p => {
     const inGlobal = p.global.find(r => r.id === id)
@@ -202,33 +200,30 @@ export const register: Register = on => {
           </Button>
         )
       }
-      // 전역과 이 프로젝트를 줄을 나눠 보여 준다. 제목 칸 폭을 맞춰 버튼이 같은 열에서 시작하게 한다.
+      // 다음 제안과 같은 모양으로, 제목 줄 아래에 한 줄에 하나씩 둔다. 그래서 두 목록의 번호가 같은 열에 선다.
+      const line = (reply: Reply) => (
+        <Box key={`line:${reply.id}`} paddingLeft={2}>
+          {chip(reply)}
+        </Box>
+      )
       const rows = (
         <Box flexDirection="column">
-          <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-            <Box width={LABEL_WIDTH}>
-              <Text dimColor>프리셋</Text>
-            </Box>
-            {presets.global.map(chip)}
+          <Box flexDirection="row" columnGap={2}>
+            <Text dimColor>전역</Text>
             <Button key="edit" label="편집" plain dimColor onPress={() => openEditor($)}>
               ✎ 편집
             </Button>
           </Box>
-          {presets.project.length > 0 && (
-            <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-              <Box width={LABEL_WIDTH}>
-                <Text dimColor>이 프로젝트</Text>
-              </Box>
-              {presets.project.map(chip)}
-            </Box>
-          )}
+          {presets.global.map(line)}
+          {presets.project.length > 0 && <Text dimColor>로컬</Text>}
+          {presets.project.map(line)}
         </Box>
       )
       return withBandSection(below, 'quick-replies', ORDER, rows)
     }
 
     // 편집 화면: 띠를 혼자 쓰고, 키 하나로 동작한다.
-    //   숫자 1~9: 프리셋 고르기 / a: 전역에 추가 / p: 이 프로젝트에 추가 / q: 완료
+    //   숫자 1~9: 프리셋 고르기 / a: 전역에 추가 / l: 로컬에 추가 / q: 완료
     //   고른 프리셋에: e 수정 / d 삭제 / m 범위 바꾸기 / k 위로 / j 아래로
     const all = [
       ...presets.global.map(reply => ({ reply, scope: 'global' as Scope })),
@@ -273,7 +268,7 @@ export const register: Register = on => {
       const editing = shown.input
       const original = editing.kind === 'rename' ? all.find(x => x.reply.id === editing.id)?.reply.text : undefined
       const title =
-        editing.kind === 'rename' ? '수정' : editing.scope === 'global' ? '전역에 추가' : '이 프로젝트에 추가'
+        editing.kind === 'rename' ? '수정' : editing.scope === 'global' ? '전역에 추가' : '로컬에 추가'
       inputRow = (
         <Box flexDirection="row" columnGap={1}>
           <Text color={ACCENT}>{title}</Text>
@@ -297,11 +292,11 @@ export const register: Register = on => {
         <Box flexDirection="row" columnGap={2}>
           <Text bold>프리셋 편집</Text>
           {action('add-global', 'a', '전역에 추가', () => setEdit({ input: { kind: 'add', scope: 'global' } }))}
-          {action('add-project', 'p', '이 프로젝트에 추가', () => setEdit({ input: { kind: 'add', scope: 'project' } }))}
+          {action('add-project', 'l', '로컬에 추가', () => setEdit({ input: { kind: 'add', scope: 'project' } }))}
           {action('done', 'q', '완료', () => update($, mode, () => ({ kind: 'view' }) as Mode))}
         </Box>
         {group('전역 (모든 저장소)', 'global')}
-        {group(`이 프로젝트 (${projectName})`, 'project')}
+        {group(`로컬 (${projectName})`, 'project')}
         {inputRow}
         {selected === null ? (
           <Text dimColor>숫자를 눌러 프리셋을 고르면 수정, 삭제, 옮기기를 할 수 있어요.</Text>
@@ -310,7 +305,7 @@ export const register: Register = on => {
             <Text dimColor>고른 프리셋</Text>
             {action('act-edit', 'e', '수정', () => setEdit({ input: { kind: 'rename', id: selected.reply.id } }))}
             {action('act-delete', 'd', '삭제', () => removePreset($, selected.reply.id))}
-            {action('act-move', 'm', selected.scope === 'global' ? '이 프로젝트로' : '전역으로', () =>
+            {action('act-move', 'm', selected.scope === 'global' ? '로컬로' : '전역으로', () =>
               movePreset($, selected.reply.id),
             )}
             {action('act-up', 'k', '위로', () => reorder($, selected.reply.id, -1))}
