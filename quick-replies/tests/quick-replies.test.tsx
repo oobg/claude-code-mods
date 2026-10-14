@@ -17,10 +17,15 @@ const SURFACES = ['terminal', 'desktop'] as const
 
 // 세션이 `cwd`에서 돈다. git은 없다고 답하므로 cwd가 곧 저장소다.
 // 띠 아래에서는 엔진 대신 `engine-band`를 그린다.
-function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}, drawBelow = true) {
+// 제목을 짓는 모델은 따로 정하지 않으면 답하지 않는다.
+function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}, drawBelow = true, titles: Record<string, string> = {}) {
   mock.store(on, stored)
   on('session.cwd', () => ({ value: cwd }))
   on('process.run', () => ({ deny: 'not a git repository' }))
+  on('model.complete', (_$, e) => {
+    const text = Object.entries(titles).find(([source]) => e.prompt.includes(source))?.[1]
+    return { value: { isAnswered: text !== undefined, text: text ?? '', usage: {} } as never }
+  })
   if (!drawBelow) {
     return
   }
@@ -31,19 +36,29 @@ function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}, drawB
 }
 
 describe('quick-replies', () => {
-  test('제안 줄이 없으면 전역 기본 프리셋 두 개에 1, 2를 붙이고, 누르면 그 문구를 사용자 말로 보낸다', async ($, on) => {
+  test('제안 줄이 없으면 전역 기본 프리셋 두 개에 1, 2를 붙인다. 번호는 입력창에 넣고, 문구를 클릭하면 사용자 말로 보낸다', async ($, on) => {
     inRepo(on, '/repo/one')
     let sent: { text: string; asUser?: true }[] = []
+    let filled: string[] = []
     on('prompt.submit', (_$, e) => {
       sent.push({ text: e.text, asUser: e.origin.kind === 'plugin' ? e.origin.asUser : undefined })
       return { text: e.text }
     })
+    on('prompt.fill', (_$, e) => {
+      filled.push(e.text)
+      return { isFilled: true } as never
+    })
 
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'quick-replies', surface, ...BAND })
-      expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('1')
-      expect((await ui.find({ key: 'send:default-1' }))?.props?.hotkey).toBe('2')
+      expect((await ui.find({ key: 'fill:default-0' }))?.props?.hotkey).toBe('1')
+      expect((await ui.find({ key: 'fill:default-1' }))?.props?.hotkey).toBe('2')
+      expect((await ui.find({ key: 'send:default-1' }))?.props?.hotkey).toBeUndefined()
       sent = []
+      filled = []
+      await ui.press({ key: 'fill:default-1' })
+      expect(filled).toEqual(['맞아 그렇게 진행해'])
+      expect(sent).toEqual([])
       await ui.press({ key: 'send:default-1' })
       expect(sent).toEqual([{ text: '맞아 그렇게 진행해', asUser: true }])
       await ui.unmount()
@@ -81,9 +96,13 @@ describe('quick-replies', () => {
 
     // q: 완료. 전역: 커밋해줘 / 로컬: /ux-writing…, 어디까지 했어?
     await ui.press({ key: 'done' })
-    expect((await ui.find({ type: 'Button', text: '커밋해줘' }))?.props?.hotkey).toBe('1')
-    expect((await ui.find({ type: 'Button', text: '/ux-writing 문구 다듬어줘' }))?.props?.hotkey).toBe('2')
-    expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('3')
+    const hotkeyOf = async (text: string) => {
+      const key = String((await ui.find({ type: 'Button', text }))?.props?.key)
+      return (await ui.find({ key: key.replace('send:', 'fill:') }))?.props?.hotkey
+    }
+    expect(await hotkeyOf('커밋해줘')).toBe('1')
+    expect(await hotkeyOf('/ux-writing 문구 다듬어줘')).toBe('2')
+    expect((await ui.find({ key: 'fill:default-0' }))?.props?.hotkey).toBe('3')
     expect(await ui.find({ type: 'Text', text: '로컬' })).toBeDefined()
     await ui.unmount()
   })
@@ -116,7 +135,7 @@ describe('quick-replies', () => {
     expect(await ui.find({ key: 'group:project' })).toBeDefined()
     expect(await ui.findAll({ type: 'Text', text: '|' })).toHaveLength(2)
     expect(await ui.find({ type: 'Text', text: '/ux-writing' })).toBeDefined()
-    expect((await ui.find({ key: 'send:p1' }))?.props?.hotkey).toBe('4')
+    expect((await ui.find({ key: 'fill:p1' }))?.props?.hotkey).toBe('4')
     // 접어도 보내는 건 원래 문구다.
     await ui.press({ key: 'send:g1' })
     expect(sent).toEqual(['지금 어디까지 진행했는지 알려줘'])
@@ -152,6 +171,44 @@ describe('quick-replies', () => {
     await ui.press({ key: 'done' })
     await ui.press({ key: 'compact' })
     expect((await ui.find({ key: 'send:default-0' }))?.props?.label).toBe('진행')
+    await ui.unmount()
+  })
+
+  test('긴 문구에는 모델이 제목을 짓고, 문구를 고치면 다시 짓는다. 사람이 단 제목은 그대로 둔다', async ($, on) => {
+    inRepo(on, '/repo/one', {}, true, {
+      '방금 바꾼 코드에 테스트를 추가해줘': '테스트 추가',
+      '방금 바꾼 코드의 테스트를 돌려줘': '테스트 실행',
+    })
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    // 제목은 뒤에서 짓는다. 나타날 때까지 몇 번 다시 본다.
+    const titleShown = async (title: string) => {
+      for (let i = 0; i < 50; i++) {
+        if ((await ui.find({ type: 'Text', text: `  제목: ${title}` })) !== undefined) {
+          return true
+        }
+        await new Promise(resolve => setTimeout(resolve, 5))
+      }
+      return false
+    }
+    await ui.press({ key: 'edit' })
+    await ui.press({ key: 'add-global' })
+    await ui.input({ key: 'input', text: '방금 바꾼 코드에 테스트를 추가해줘' })
+    expect(await titleShown('테스트 추가')).toBe(true)
+
+    // 3번(새 프리셋)을 골라 문구를 고치면 제목을 다시 짓는다.
+    const added = String((await ui.findAll({ type: 'Button' })).find(b => String(b.props?.key).startsWith('select:') && !String(b.props?.key).startsWith('select:default'))?.props?.key)
+    await ui.press({ key: added })
+    await ui.press({ key: 'act-edit' })
+    await ui.input({ key: 'input', text: '방금 바꾼 코드의 테스트를 돌려줘' })
+    expect(await titleShown('테스트 실행')).toBe(true)
+
+    // 사람이 단 제목은 문구를 고쳐도 남는다.
+    await ui.press({ key: 'act-title' })
+    await ui.input({ key: 'input', text: '테스트' })
+    await ui.press({ key: 'act-edit' })
+    await ui.input({ key: 'input', text: '방금 바꾼 코드에 테스트를 추가해줘' })
+    expect(await titleShown('테스트')).toBe(true)
+    expect(await ui.find({ type: 'Text', text: '  제목: 테스트 추가' })).toBeUndefined()
     await ui.unmount()
   })
 
@@ -205,7 +262,7 @@ describe('quick-replies', () => {
     expect(await ui.find({ key: 'oobg-band:10:next-prompts' })).toBeDefined()
     expect(await ui.find({ key: 'oobg-band:20:quick-replies' })).toBeDefined()
     // 위 줄의 제안 1~2 다음부터 프리셋 번호가 이어진다.
-    expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('3')
+    expect((await ui.find({ key: 'fill:default-0' }))?.props?.hotkey).toBe('3')
     await ui.unmount()
   })
 

@@ -1,5 +1,8 @@
-/** 프리셋 하나. `text`는 보내는 문구, `title`은 접은 띠에 보이는 짧은 이름(없으면 `text`를 줄여 쓴다). */
-export type Reply = { id: string; text: string; title?: string }
+/**
+ * 프리셋 하나. `text`는 보내는 문구, `title`은 접은 띠에 보이는 짧은 이름(없으면 `text`를 줄여 쓴다).
+ * `autoTitle`은 제목을 모델이 지었다는 표시다. 문구를 고치면 다시 짓는다. 사람이 단 제목에는 없다.
+ */
+export type Reply = { id: string; text: string; title?: string; autoTitle?: true }
 
 /** 프리셋이 어디에 저장되는가: 모든 저장소에 보이는 `global`, 지금 저장소에만 보이는 `project`. */
 export type Scope = 'global' | 'project'

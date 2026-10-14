@@ -3,6 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { EditInput, Mode, Reply, Scope } from '../types'
 import { exclusiveBand, withBandSection } from './band'
+import { TITLE_SYSTEM, needsTitle, parseTitle, shortTitle, titlePrompt } from './title'
 
 export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞아 그렇게 진행해']
 
@@ -19,8 +20,6 @@ const compact = atom({ plugin: 'quick-replies', key: 'compact' } as const, null)
 
 const GLOBAL_KEY = 'global'
 const COMPACT_KEY = 'compact'
-// 접은 띠에서 제목이 없는 프리셋은 문구를 이 길이까지 줄여 보인다.
-const MAX_TITLE_CHARS = 12
 const projectKey = (root: string) => `repo:${root}`
 
 // git 저장소 안이면 그 최상위 폴더, 아니면 세션 폴더가 프로젝트 프리셋의 단위다.
@@ -102,22 +101,67 @@ async function send($: EngineInterface, text: string): Promise<void> {
 }
 
 const without = (list: Reply[], id: string) => list.filter(r => r.id !== id)
-const renamed = (list: Reply[], id: string, text: string) => list.map(r => (r.id === id ? { ...r, text } : r))
-// 빈 제목은 제목을 지운다. 그러면 접은 띠에 문구를 줄여 보인다.
+const untitled = ({ title: _title, autoTitle: _auto, ...rest }: Reply): Reply => rest
+// 문구를 고치면 모델이 지은 제목은 버리고 다시 짓는다. 사람이 단 제목은 그대로 둔다.
+const renamed = (list: Reply[], id: string, text: string) =>
+  list.map(r => (r.id !== id ? r : r.autoTitle ? { ...untitled(r), text } : { ...r, text }))
+// 사람이 단 제목. 빈 제목은 제목을 지워, 모델이 다시 짓게 한다.
 const retitled = (list: Reply[], id: string, title: string) =>
-  list.map(r => {
-    if (r.id !== id) {
-      return r
-    }
-    const { title: _old, ...rest } = r
-    return title === '' ? rest : { ...rest, title }
-  })
+  list.map(r => (r.id !== id ? r : title === '' ? untitled(r) : { ...untitled(r), title }))
+// 모델이 지은 제목. 그사이 문구가 바뀌었거나 사람이 제목을 달았으면 버린다.
+const autoTitled = (list: Reply[], id: string, text: string, title: string) =>
+  list.map(r => (r.id === id && r.text === text && r.title === undefined ? { ...r, title, autoTitle: true as const } : r))
 
-export function shortTitle(reply: Reply): string {
-  if (reply.title !== undefined) {
-    return reply.title
+// 지금 제목을 짓고 있는 프리셋 id와 그때의 문구. 같은 문구로 두 번 묻지 않는다.
+const titling = new Map<string, string>()
+
+// 제목이 없는 긴 프리셋에 작은 모델(haiku)로 제목을 지어 단다. 제목은 덤이라 실패하면 문구를 줄여 보인다.
+async function autoTitle($: EngineInterface, reply: Reply): Promise<void> {
+  if (!needsTitle(reply) || titling.get(reply.id) === reply.text) {
+    return
   }
-  return reply.text.length <= MAX_TITLE_CHARS ? reply.text : `${reply.text.slice(0, MAX_TITLE_CHARS).trimEnd()}…`
+  titling.set(reply.id, reply.text)
+  try {
+    const answer = await $.model.complete({
+      model: 'haiku',
+      system: TITLE_SYSTEM,
+      prompt: titlePrompt(reply.text),
+      maxTokens: 40,
+      effort: 'low',
+      timeoutMs: 20_000,
+    })
+    const title = answer.isAnswered ? parseTitle(answer.text) : ''
+    if (title !== '') {
+      await save($, p => ({
+        ...p,
+        global: autoTitled(p.global, reply.id, reply.text, title),
+        project: autoTitled(p.project, reply.id, reply.text, title),
+      }))
+    }
+  } catch {
+    // 제목을 못 지으면 접은 띠에 문구를 줄여 보인다.
+  } finally {
+    if (titling.get(reply.id) === reply.text) {
+      titling.delete(reply.id)
+    }
+  }
+}
+
+// 한 프리셋의 제목을 다시 살핀다. 기다리지 않는다.
+async function titleLater($: EngineInterface, id: string): Promise<void> {
+  const { global, project } = await current($)
+  const reply = [...global, ...project].find(r => r.id === id)
+  if (reply !== undefined) {
+    void autoTitle($, reply)
+  }
+}
+
+// 세션을 열 때 제목이 없는 긴 프리셋에 차례로 제목을 단다. 한 번 지은 제목은 저장되어 다시 묻지 않는다.
+async function titleAll($: EngineInterface): Promise<void> {
+  const { global, project } = await current($)
+  for (const reply of [...global, ...project]) {
+    await autoTitle($, reply)
+  }
 }
 
 // 띠의 requestId. 편집 화면을 열 때 키보드 포커스를 띠로 옮기는 데 쓴다(그릴 때마다 갱신).
@@ -132,6 +176,7 @@ async function openEditor($: EngineInterface): Promise<void> {
 }
 
 // 입력칸에서 Enter를 누르면 추가하거나 고친다. 빈 문구는 무시하고, 빈 제목은 제목을 지운다.
+// 제목이 비면 모델이 뒤에서 제목을 짓는다.
 async function submitInput($: EngineInterface, editing: EditInput, text: string): Promise<void> {
   if (editing.kind === 'title') {
     await save($, p => ({
@@ -139,18 +184,21 @@ async function submitInput($: EngineInterface, editing: EditInput, text: string)
       global: retitled(p.global, editing.id, text),
       project: retitled(p.project, editing.id, text),
     }))
+    await titleLater($, editing.id)
   } else if (text !== '') {
     if (editing.kind === 'add') {
       const reply = { id: crypto.randomUUID(), text }
       await save($, p =>
         editing.scope === 'global' ? { ...p, global: [...p.global, reply] } : { ...p, project: [...p.project, reply] },
       )
+      await titleLater($, reply.id)
     } else {
       await save($, p => ({
         ...p,
         global: renamed(p.global, editing.id, text),
         project: renamed(p.project, editing.id, text),
       }))
+      await titleLater($, editing.id)
     }
   }
   await update($, mode, m => (m.kind === 'edit' ? { ...m, input: null } : m))
@@ -197,6 +245,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await load($)
+    void titleAll($)
     return result
   })
 
@@ -214,35 +263,48 @@ export const register: Register = on => {
       const below = await next(e)
       const folded = await isCompact($)
       // 숫자 단축키는 띠 틀이 위에서부터 다시 매긴다. 여기서는 순서만 정해 두고 1부터 붙인다.
+      // 프리셋 하나는 버튼 두 개다. 번호(`1:`)는 숫자를 누르거나 클릭하면 문구를 입력창에 넣기만 하고,
+      // 문구는 클릭하면 바로 보낸다. 버튼은 무엇으로 눌렸는지 알 수 없어 둘로 나눴다.
       let hotkey = 0
-      const chip = (reply: Reply) => {
+      const item = (reply: Reply) => {
         hotkey += 1
-        // 접으면 제목을 보인다. 제목이 없으면 문구를 줄여 보이고, /명령이면 명령 부분을 칠한다.
+        // 접으면 제목을, 펼치면 문구를 보인다. 보이는 글이 /명령으로 시작하면 그 부분만 칠한다.
         const label = folded ? shortTitle(reply) : reply.text
-        // 보이는 글이 /명령으로 시작하면 그 부분만 칠한다. 접어 줄인 글도 명령 이름은 원래 문구에서 찾는다.
         const command = parseCommand(reply.text)
         const prefix = command === null ? '' : `/${command.command}`
         const isCommand = prefix !== '' && label.startsWith(prefix)
         return (
-          <Button
-            key={`send:${reply.id}`}
-            label={label}
-            plain
-            {...(hotkey <= 9 ? { hotkey: String(hotkey) } : {})}
-            onPress={() => {
-              void send($, reply.text)
-            }}
-          >
-            {isCommand ? (
-              // 스킬이나 슬래시 명령은 명령 부분만 번호와 같은 색으로 칠해 일반 문장과 구분한다.
-              <Text>
-                <Text color={ACCENT}>{prefix}</Text>
-                {label.slice(prefix.length)}
-              </Text>
-            ) : (
-              label
+          <Box key={`item:${reply.id}`} flexDirection="row">
+            {hotkey <= 9 && (
+              <Button
+                key={`fill:${reply.id}`}
+                label=""
+                hotkey={String(hotkey)}
+                plain
+                onPress={() => {
+                  void $.prompt.fill({ text: reply.text })
+                }}
+              />
             )}
-          </Button>
+            <Button
+              key={`send:${reply.id}`}
+              label={label}
+              plain
+              onPress={() => {
+                void send($, reply.text)
+              }}
+            >
+              {isCommand ? (
+                // 스킬이나 슬래시 명령은 명령 부분만 번호와 같은 색으로 칠해 일반 문장과 구분한다.
+                <Text>
+                  <Text color={ACCENT}>{prefix}</Text>
+                  {label.slice(prefix.length)}
+                </Text>
+              ) : (
+                label
+              )}
+            </Button>
+          </Box>
         )
       }
       // 펼치면 다음 제안과 같은 모양으로, 제목 줄 아래에 한 줄에 하나씩 둔다. 그래서 두 목록의 번호가 같은 열에 선다.
@@ -252,13 +314,13 @@ export const register: Register = on => {
           <Box key={`group:${scope}`} flexDirection="row" flexWrap="wrap" columnGap={1} paddingLeft={2}>
             {list.flatMap((reply, i) => [
               ...(i > 0 ? [<Text key={`sep:${reply.id}`} dimColor>|</Text>] : []),
-              chip(reply),
+              item(reply),
             ])}
           </Box>
         ) : (
           list.map(reply => (
             <Box key={`line:${reply.id}`} paddingLeft={2}>
-              {chip(reply)}
+              {item(reply)}
             </Box>
           ))
         )

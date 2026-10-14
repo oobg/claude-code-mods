@@ -39,7 +39,7 @@ describe('next-prompts', () => {
     expect(prompt.length).toBeLessThan(5200)
   })
 
-  test('제안이 있으면 띠에 숫자 단축키 버튼으로 그리고, 고르면 입력창에 초안으로 넣고 띠를 닫는다', async ($, on) => {
+  test('제안이 있으면 띠에 숫자 단축키 버튼으로 그리고, 번호를 고르면 입력창에 초안으로 넣고 띠를 닫는다', async ($, on) => {
     mock.store(on)
     const filled: string[] = []
     on('prompt.fill', (_$, e) => {
@@ -65,6 +65,7 @@ describe('next-prompts', () => {
       ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
     }
     expect((await ui.find({ key: 'pick:1' }))?.props?.hotkey).toBe('1')
+    expect((await ui.find({ key: 'go:1' }))?.props?.hotkey).toBeUndefined()
     expect(await ui.find({ key: 'pick:2' })).toBeDefined()
     await ui.press({ key: 'pick:2' })
     expect(filled).toEqual(['커밋해줘'])
@@ -92,11 +93,41 @@ describe('next-prompts', () => {
       await ui.unmount()
       ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
     }
-    expect((await ui.find({ key: 'pick:1' }))?.props?.label).toBe('테스트')
-    expect((await ui.find({ key: 'pick:2' }))?.props?.label).toBe('커밋')
+    expect((await ui.find({ key: 'go:1' }))?.props?.label).toBe('테스트')
+    expect((await ui.find({ key: 'go:2' }))?.props?.label).toBe('커밋')
     expect(await ui.find({ key: 'picks' })).toBeDefined()
     expect(await ui.findAll({ type: 'Text', text: '|' })).toHaveLength(1)
     expect((await ui.find({ key: 'dismiss' }))?.props?.hotkey).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('제안 문구를 클릭하면 바로 사용자 말로 보내고 띠를 닫는다', async ($, on) => {
+    mock.store(on)
+    const sent: string[] = []
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-band</Text>
+    })
+    on('model.complete', () => ({
+      value: { isAnswered: true, text: '테스트 :: 테스트 돌려줘\n커밋 :: 커밋해줘', usage: {} } as never,
+    }))
+    on('turn.complete', () => ({ text: '' }))
+    on('prompt.submit', (_$, e) => {
+      sent.push(e.text)
+      return { text: '' } as never
+    })
+
+    await $.prompt.submit({ text: '버튼 꾸며줘' } as never)
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
+    let ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
+    for (let i = 0; i < 50 && (await ui.find({ key: 'go:1' })) === undefined; i++) {
+      await ui.unmount()
+      ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
+    }
+    sent.length = 0
+    await ui.press({ key: 'go:2' })
+    expect(sent).toEqual(['커밋해줘'])
+    expect(await ui.find({ key: 'go:1' })).toBeUndefined()
     await ui.unmount()
   })
 })

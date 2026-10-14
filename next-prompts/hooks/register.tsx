@@ -70,19 +70,34 @@ export const register: Register = on => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const clear = () => update($, suggestions, () => [])
 
-    // 입력창이 비어 있을 때 숫자 1~3은 그 제안을 입력창에 초안으로 넣는다(보내지는 않는다).
+    // 제안 하나는 버튼 두 개다. 번호(`1:`)는 숫자 1~3을 누르거나 클릭하면 입력창에 초안으로 넣기만 하고,
+    // 문구는 클릭하면 바로 보낸다. 버튼은 무엇으로 눌렸는지 알 수 없어 둘로 나눴다.
     // 0은 quick-replies가 맡아 이 줄까지 함께 접고 편다. 닫기는 클릭으로만 한다.
     const pick = (item: Suggestions[number], i: number) => (
-      <Button
-        key={`pick:${i + 1}`}
-        label={folded ? item.title : item.text}
-        hotkey={String(i + 1)}
-        plain
-        onPress={async () => {
-          await $.prompt.fill({ text: item.text })
-          await clear()
-        }}
-      />
+      <Box key={`item:${i + 1}`} flexDirection="row">
+        <Button
+          key={`pick:${i + 1}`}
+          label=""
+          hotkey={String(i + 1)}
+          plain
+          onPress={async () => {
+            await $.prompt.fill({ text: item.text })
+            await clear()
+          }}
+        />
+        <Button
+          key={`go:${i + 1}`}
+          label={folded ? item.title : item.text}
+          plain
+          onPress={async () => {
+            // 이 모드가 보낸 프롬프트에는 자기 prompt.submit 훅이 돌지 않으니, 그 일을 여기서 한다.
+            generation += 1
+            await clear()
+            await update($, lastPrompt, () => item.text)
+            await $.prompt.submit({ text: item.text, asUser: true })
+          }}
+        />
+      </Box>
     )
     // 펼치면 제목 줄 다음에 제안을 한 줄에 하나씩, 접으면 `1: 제목 | 2: 제목`으로 한 줄에 잇는다.
     const row = (
