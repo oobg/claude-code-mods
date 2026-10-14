@@ -18,6 +18,11 @@
       "name": "dashboard",
       "source": "./dashboard",
       "description": "모델, 컨텍스트, 요금, 사용 한도(Fable 포함), 브랜치를 입력창 아래에 그린다. /dashboard-style과 /dashboard-theme으로 모양과 색을 바꾼다"
+    },
+    {
+      "name": "key-assist",
+      "source": "./key-assist",
+      "description": "Finder에서 복사한 파일을 입력창에 붙여넣으면 파일 이름 대신 @경로 멘션으로 바꿔 넣는다. macOS 전용"
     }
   ]
 }

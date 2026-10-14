@@ -6,7 +6,7 @@
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.296-D97757)](https://claude.com/claude-code)
 [![Marketplace](https://img.shields.io/badge/marketplace-oobg-24292f)](#빠른-시작)
-[![Mods](https://img.shields.io/badge/mods-3-2ea44f)](#모드-목록)
+[![Mods](https://img.shields.io/badge/mods-4-2ea44f)](#모드-목록)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
@@ -22,6 +22,7 @@ Claude Code 프롬프트에 차례로 입력한다.
 /plugin install next-prompts@oobg
 /plugin install quick-replies@oobg
 /plugin install dashboard@oobg
+/plugin install key-assist@oobg
 ```
 
 첫 줄로 마켓플레이스를 등록하고, 나머지 줄로 원하는 모드를 설치한다. 설치 범위를 물으면 원하는 범위를 고른다.
@@ -33,8 +34,9 @@ Claude Code 프롬프트에 차례로 입력한다.
 | [next-prompts](#next-prompts) | 턴이 끝나면 다음에 보낼 만한 프롬프트를 제안한다 | 입력창 위 |
 | [quick-replies](#quick-replies) | 전역과 로컬(저장소별) 프리셋 문구를 두고, 숫자로 입력창에 넣거나 클릭해 바로 보낸다 | 입력창 위 |
 | [dashboard](#dashboard) | 세션 상태를 두 줄로 권한 모드 줄 밑에 그린다 | 입력창 아래 |
+| [key-assist](#key-assist) | Finder에서 복사한 파일을 붙여넣으면 파일 이름 대신 `@경로`로 넣는다 | 입력창 |
 
-세 모드를 함께 설치하면 입력창 주변이 이렇게 정리된다.
+앞의 세 모드를 함께 설치하면 입력창 주변이 이렇게 정리된다.
 
 ```
 
@@ -245,6 +247,41 @@ Claude Code 프롬프트에 차례로 입력한다.
 
 ---
 
+## key-assist
+
+> Finder에서 복사한 파일을 붙여넣으면, 파일 이름 대신 `@경로` 멘션이 들어간다.
+
+### 동작
+
+- Finder에서 파일을 복사해 입력창에 붙여넣으면 터미널은 파일 이름(`메뉴표준화_초안.html`)만 넣는다. 모드는 macOS 클립보드에서 그 파일의 전체 경로를 읽어 `@/Users/me/Downloads/메뉴표준화_초안.html`로 바꾼다.
+- 여러 파일을 한 번에 붙여넣어 이름들이 공백이나 줄바꿈으로 이어져 들어오면, 경로를 공백으로 이어 모두 바꾼다. 경로에 공백이 있으면 `@"/경로 이름/파일"`처럼 따옴표로 감싼다.
+- 붙여넣은 글이 클립보드에 든 파일의 이름이나 경로와 같을 때만 바꾼다. 보통 글을 붙여넣을 때는 아무것도 하지 않는다.
+- 붙여넣으면 곧바로 바뀐다. 그 순간을 놓치면 다음 키를 칠 때 바꾸고, 바로 Enter를 치면 보내는 글에서 바꾼다.
+- 클립보드는 `osascript`로 읽는다. 붙여넣기처럼 글이 한 번에 덩어리로 들어올 때만 읽고, 한 글자씩 칠 때는 읽지 않는다.
+
+### 알아 둘 점
+
+- macOS 전용이다.
+- 한글 파일 이름은 Finder가 자모로 풀어(NFD) 넘길 때가 있다. 모드는 완성형(NFC)으로 맞춰 비교하고, 경로도 완성형으로 넣는다.
+- 붙여넣기는 Claude Code의 편집 이벤트를 거치지 않는다. 그래서 모드는 붙여넣은 직후 Claude Code가 자동완성을 물어 오는 때를 잡아 바꾼다. 타이머로 입력창을 바꾸면 화면이 다음 키까지 다시 그려지지 않아서 쓰지 않았다.
+
+### Cmd+Z로 되돌리기
+
+되돌리기는 모드가 아니라 Claude Code 키 설정으로 켠다. Claude Code에는 입력창 되돌리기(`chat:undo`, 기본 `ctrl+_`)가 이미 있다. `~/.claude/keybindings.json`에 아래처럼 `cmd+z`를 더하면 Mac에서 익숙한 Cmd+Z로 되돌린다.
+
+```json
+{
+  "$schema": "https://www.schemastore.org/claude-code-keybindings.json",
+  "bindings": [
+    { "context": "Chat", "bindings": { "cmd+z": "chat:undo" } }
+  ]
+}
+```
+
+Command 키를 앱에 넘겨 주는 터미널(Kitty 키보드 프로토콜을 쓰는 Orca, Ghostty, kitty, WezTerm 등)에서만 동작한다. Ctrl+Z는 터미널에서 프로세스를 일시정지하는 키라서 쓰지 않는다. 눌러서 Claude Code가 멈췄다면 `fg`로 돌아온다.
+
+---
+
 ## 입력창 위를 나눠 쓰는 방법
 
 입력창 위 띠는 한 모드만 그릴 수 있다. 그래서 next-prompts와 quick-replies는 같은 틀(`oobg-band`)을 주고받으며 각자 자기 줄을 순서대로 끼워 넣는다. 제안이 10번, 프리셋이 20번 자리다. 한쪽만 설치해도 그 모드의 줄만 그려진다. 숫자 단축키는 틀을 합칠 때 위에서부터 다시 매기므로, 제안이 없으면 프리셋이 1번부터 시작한다. 편집 화면처럼 띠를 혼자 써야 할 때는 다른 모드가 줄을 넣지 않는 전용 틀을 쓴다.
@@ -263,6 +300,7 @@ Claude Code 프롬프트에 차례로 입력한다.
 /plugin uninstall next-prompts@oobg
 /plugin uninstall quick-replies@oobg
 /plugin uninstall dashboard@oobg
+/plugin uninstall key-assist@oobg
 ```
 
 ## 개발
@@ -301,11 +339,14 @@ claude plugin test ./next-prompts
 │       ├── register.tsx      # 프리셋 줄과 편집 화면
 │       ├── title.ts          # 제목을 지을 때 모델에 보낼 요청과 답 정리
 │       └── band.ts           # next-prompts와 같은 파일
-└── dashboard/
+├── dashboard/
+│   └── hooks/
+│       ├── register.tsx      # 세션 값을 모으고 입력창 아래에 그림
+│       ├── lines.ts          # 세션 값으로 모양과 색을 짜는 순수 함수
+│       └── footer.ts         # 입력창 아래를 나눠 쓰는 틀
+└── key-assist/
     └── hooks/
-        ├── register.tsx      # 세션 값을 모으고 입력창 아래에 그림
-        ├── lines.ts          # 세션 값으로 모양과 색을 짜는 순수 함수
-        └── footer.ts         # 입력창 아래를 나눠 쓰는 틀
+        └── register.ts       # 붙여넣은 파일 이름을 클립보드의 경로로 바꿈
 ```
 
 `band.ts`는 next-prompts와 quick-replies에 똑같이 들어 있다. 고칠 때는 둘 다 고친다.
@@ -314,7 +355,7 @@ claude plugin test ./next-prompts
 
 ## 호환성
 
-Claude Code 2.1.296에서 만들고 테스트했다. 모드 기능은 아직 초기 공개 단계라서 이후 버전에서는 동작이 달라질 수 있다.
+Claude Code 2.1.296에서 만들고 테스트했다. key-assist는 2.1.299에서 만들었다. 모드 기능은 아직 초기 공개 단계라서 이후 버전에서는 동작이 달라질 수 있다.
 
 ## 라이선스
 
