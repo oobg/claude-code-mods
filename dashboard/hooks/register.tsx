@@ -16,7 +16,8 @@ const permissionMode = atom({ plugin: 'dashboard', key: 'permissionMode' } as co
 // 모델 요청에 실린 effort. 모드가 effort를 따로 읽을 길이 없어서, 메인 대화의 요청이 나갈 때 받아 둔다. 첫 요청 전에는 null.
 const effort = atom({ plugin: 'dashboard', key: 'effort' } as const, null as string | null)
 // 대시보드 모양과 이번 주 Fable 사용량. 둘 다 저장해 두고 다음 세션에도 쓴다.
-const style = atom({ plugin: 'dashboard', key: 'style' } as const, null as Style | null)
+// 세션 상태는 플러그인을 다시 불러와도 남는다. 0.4.0 전 값('style')이 남아 있어도 쓰지 않도록 이름을 바꿨다.
+const style = atom({ plugin: 'dashboard', key: 'layoutStyle' } as const, null as Style | null)
 const fableWeek = atom({ plugin: 'dashboard', key: 'fableWeek' } as const, null as number | null)
 const theme = atom({ plugin: 'dashboard', key: 'theme' } as const, null as Theme | null)
 

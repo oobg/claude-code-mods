@@ -41,7 +41,7 @@ declare module 'claude-code' {
       snapshot: Snapshot | null
       permissionMode: string | null
       effort: string | null
-      style: Style | null
+      layoutStyle: Style | null
       theme: Theme | null
       fableWeek: number | null
     }
