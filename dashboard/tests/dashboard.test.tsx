@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { launchPermissionMode } from '../hooks/footer'
-import { THEMES, buildLayout, buildLines, levelColor, resetLabel, compactTokens, duration, parseFableWeek } from '../hooks/lines'
+import { THEMES, buildLayout, buildLines, levelColor, parseResetTime, parseUsageLimits, resetLabel, compactTokens, duration, parseFableWeek } from '../hooks/lines'
 import type { Snapshot } from '../hooks/lines'
 
 const HINT = {
@@ -180,6 +180,7 @@ describe('dashboard', () => {
       const exact = async (text: string) => (await ui.findAll({ type: 'Text', text })).find(f => f.text === text)
       expect(await exact('🧠 Opus')).toBeDefined()
       expect(await exact(' xhigh')).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /⏱/ })).toBeUndefined()
       expect(await exact('📁 repo')).toBeDefined()
       expect(await exact(' ⎇ main')).toBeDefined()
       expect((await exact('🔑 me@example.com'))?.props?.color).toBe(THEMES.everforest.muted)
@@ -251,7 +252,7 @@ describe('dashboard', () => {
       await ui.unmount()
       ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...(narrow as object) } as never)
     }
-    for (const head of ['MODEL', 'CONTEXT', '5H', 'TIME', 'BRANCH']) {
+    for (const head of ['MODEL', 'CONTEXT', '5H', 'BRANCH']) {
       expect(await ui.find({ type: 'Text', text: head })).toBeDefined()
     }
     expect(await ui.find({ type: 'Text', text: '⎇ main' })).toBeDefined()
@@ -324,5 +325,24 @@ describe('dashboard', () => {
     expect(launchPermissionMode('/Users/me/.local/bin/claude --permission-mode plan')).toBe('plan')
     expect(launchPermissionMode('claude --permission-mode=acceptEdits -c')).toBe('acceptEdits')
     expect(launchPermissionMode('claude')).toBeNull()
+  })
+
+  test('/usage 출력에서 5시간, 주간, Fable 한도와 다시 차는 시각을 읽는다', () => {
+    const now = new Date(2026, 9, 14, 15, 0).getTime()
+    const text = [
+      'Current session: 14% used · resets Oct 14 at 5pm (Asia/Seoul)',
+      'Current week (all models): 29% used · resets Oct 17 at 5:59pm (Asia/Seoul)',
+      'Current week (Fable): 0% used · resets Oct 17 at 6pm (Asia/Seoul)',
+    ].join('\n')
+    const limits = parseUsageLimits(text, now)
+    expect(limits.map(l => [l.kind, l.percentUsed])).toEqual([
+      ['five_hour', 14],
+      ['seven_day', 29],
+      ['fable', 0],
+    ])
+    expect(new Date(limits[0]?.resetsAt ?? '').getHours()).toBe(17)
+    expect(new Date(limits[1]?.resetsAt ?? '').getMinutes()).toBe(59)
+    // 지난 날짜면 내년으로 본다.
+    expect(new Date(parseResetTime('Jan 2 at 9am', now) ?? '').getFullYear()).toBe(2027)
   })
 })

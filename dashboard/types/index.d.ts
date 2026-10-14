@@ -27,6 +27,8 @@ export type Snapshot = {
   rateLimits: readonly { kind: string; percentUsed: number; resetsAt?: string }[]
   /** 이번 주 Fable 한도를 쓴 정도. /usage에서 읽어 둔 값이고, 아직 없으면 null. */
   fableWeek: number | null
+  /** Fable 주간 한도가 다시 차는 시각. /usage에서 읽었고, 없으면 주간 한도와 같은 때로 본다. */
+  fableResetsAt?: string
   folder: string
   branch: string | null
   email: string | null
@@ -44,6 +46,7 @@ declare module 'claude-code' {
       layoutStyle: Style | null
       theme: Theme | null
       fableWeek: number | null
+      polledLimits: { kind: 'five_hour' | 'seven_day' | 'fable'; percentUsed: number; resetsAt?: string }[] | null
     }
   }
 }

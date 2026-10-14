@@ -54,7 +54,7 @@ Claude Code 프롬프트에 차례로 입력한다.
  ──────────────────────────────────────────────────────────
  ▸▸ bypass permissions on · (shift+tab to cycle) · ← for agents
  ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% 409K/1.0M   5h ▰▱▱▱▱  6% (2h13m)   7d ▰▱▱▱▱ 26% (3d4h)
- ▌ 🧠 Opus xhigh · ⏱ 52분 · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
+ ▌ 🧠 Opus xhigh · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
 ```
 
 `0`을 누르면 프리셋을 접어, 전역과 로컬을 각각 한 줄에 제목만으로 보여 준다. 다시 `0`을 누르면 펼친다. 다음 제안은 접지 않고 늘 전체 문구로 보인다.
@@ -162,7 +162,7 @@ Claude Code 프롬프트에 차례로 입력한다.
 
 ```
 ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% 409K/1.0M   5h ▰▱▱▱▱  6% (2h13m)   7d ▰▱▱▱▱ 26% (3d4h)   fable ▰▱▱▱▱ 12% (3d4h)
-▌ 🧠 Opus xhigh · ⏱ 52분 · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
+▌ 🧠 Opus xhigh · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
 ```
 
 맨 앞 세로줄은 두 줄을 한 덩어리로 묶는다. 평소에는 모델 색이고, 컨텍스트가 50%를 넘으면 게이지와 같은 경고 색을 따른다.
@@ -170,21 +170,20 @@ Claude Code 프롬프트에 차례로 입력한다.
 화면이 좁아 이 모양이 들어가지 않으면, 이름표 줄 위에 값 줄을 놓는 표로 바뀐다. 창 크기를 바꾸면 바로 다시 고른다.
 
 ```
-▌ MODEL          CONTEXT          5H   7D   FABLE  TIME  BRANCH
-▌ 🧠 Opus xhigh  ▰▰▰▱▱▱▱▱ 41%     6%   26%  12%    52분  ⎇ main
+▌ MODEL          CONTEXT          5H   7D   FABLE  BRANCH
+▌ 🧠 Opus xhigh  ▰▰▰▱▱▱▱▱ 41%     6%   26%  12%    ⎇ main
 ```
 
 | 칸 | 내용 |
 | --- | --- |
 | `🧠 Opus xhigh` | 모델 계열과 effort. effort는 첫 요청이 나간 뒤에 붙는다 |
-| `⏱` | 세션을 연 뒤 지난 시간. 이어서 연 세션은 처음 연 때부터, `/clear` 뒤에는 그때부터 센다 |
 | `📁 … ⎇ main` | 프로젝트 폴더와 git 브랜치 |
 | `🔑` | 로그인한 계정의 이메일. API 키로 쓰면 빠지고, 좁은 화면 표에서도 빠진다 |
 | `ctx` | 컨텍스트가 찬 정도. 옆에는 쓴 토큰과 전체 크기 |
 | `5h`, `7d` | 사용 한도를 쓴 정도. 옆 괄호 안은 다시 차기까지 남은 시간 |
-| `fable` | 이번 주 Fable 한도. 세션을 열 때와 10분마다 뒤에서 읽는다. 다시 차는 때는 주간 한도와 같다 |
+| `fable` | 이번 주 Fable 한도 |
 
-값을 모르는 칸은 빼고 그린다.
+한도 값(5h, 7d, Fable)은 세션을 열 때와 10분마다 뒤에서 `/usage`를 읽어 채운다. 5h와 7d는 응답이 올 때마다 Claude Code가 주는 값으로 바뀌지만, 첫 응답 전에는 그 값이 없어서 `/usage` 값으로 먼저 보인다. 값을 모르는 칸은 빼고 그린다.
 
 `/dashboard-style`로 다른 모양(`calm`, `emoji`, `compact`)도 고를 수 있다. 이름 없이 실행하면 다음 모양으로 넘어가고, 고른 모양은 다음 세션에도 이어진다.
 

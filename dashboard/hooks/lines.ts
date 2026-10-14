@@ -146,6 +146,49 @@ export function parseFableWeek(usageText: string): number | null {
   return found === undefined ? null : Number(found)
 }
 
+export type PolledLimit = { kind: 'five_hour' | 'seven_day' | 'fable'; percentUsed: number; resetsAt?: string }
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+
+// "Oct 14 at 4:59pm", "Oct 17 at 6pm"을 이 컴퓨터 시간대의 시각으로 읽는다. 지난 날짜면 내년으로 본다.
+export function parseResetTime(text: string, nowMs: number): string | undefined {
+  const m = /([A-Za-z]{3})\w*\s+(\d{1,2})\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(text)
+  if (m === null) {
+    return undefined
+  }
+  const month = MONTHS.indexOf((m[1] ?? '').toLowerCase())
+  if (month < 0) {
+    return undefined
+  }
+  let hour = Number(m[3]) % 12
+  if ((m[5] ?? '').toLowerCase() === 'pm') {
+    hour += 12
+  }
+  const year = new Date(nowMs).getFullYear()
+  const at = (y: number) => new Date(y, month, Number(m[2]), hour, Number(m[4] ?? 0)).getTime()
+  const time = at(year) < nowMs - 24 * 60 * 60_000 ? at(year + 1) : at(year)
+  return new Date(time).toISOString()
+}
+
+// /usage 출력에서 5시간(Current session), 주간(Current week (all models)), Fable 한도를 읽는다.
+// 첫 응답이 오기 전에는 Claude Code가 한도 값을 갖고 있지 않아서, 그동안 이 값을 쓴다.
+export function parseUsageLimits(usageText: string, nowMs: number): PolledLimit[] {
+  const rows: [PolledLimit['kind'], RegExp][] = [
+    ['five_hour', /Current session:\s*([\d.]+)% used(?:\s*·\s*resets\s+([^\n(]+))?/],
+    ['seven_day', /Current week \(all models\):\s*([\d.]+)% used(?:\s*·\s*resets\s+([^\n(]+))?/],
+    ['fable', /Current week \(Fable\):\s*([\d.]+)% used(?:\s*·\s*resets\s+([^\n(]+))?/],
+  ]
+  const out: PolledLimit[] = []
+  for (const [kind, re] of rows) {
+    const m = re.exec(usageText)
+    if (m !== null) {
+      const resetsAt = m[2] === undefined ? undefined : parseResetTime(m[2], nowMs)
+      out.push({ kind, percentUsed: Number(m[1]), ...(resetsAt === undefined ? {} : { resetsAt }) })
+    }
+  }
+  return out
+}
+
 type Parts = {
   model: Segment[]
   bar: Segment[] | null
@@ -273,7 +316,7 @@ function gauge(c: Palette, label: string, percent: number, cells: number): Segme
 // gauge 모양: 윗줄은 게이지만, 각 게이지 옆에 흐린 글자로 딸린 정보(토큰, 다시 차기까지 남은 시간)를 붙인다.
 // 아랫줄은 무엇으로 어디서 일하는지. 맨 앞 세로줄이 두 줄을 묶는다.
 //   ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% 409K/1.0M   5h ▰▱▱▱▱  6% (2h13m)   7d ▰▱▱▱▱ 26% (3d4h)   fable ▰▱▱▱▱ 12% (3d4h)
-//   ▌ 🧠 Opus xhigh · ⏱ 52분 · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
+//   ▌ 🧠 Opus xhigh · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
 function gaugeLayout(s: Snapshot, c: Palette): Layout {
   const gap: Segment = { text: '   ' }
   const note = (text: string | null): Segment[] => (text === null ? [] : [{ text: ` ${text}`, dim: true }])
@@ -298,7 +341,7 @@ function gaugeLayout(s: Snapshot, c: Palette): Layout {
   }
   if (s.fableWeek !== null) {
     // Fable 주간 한도는 전체 주간 한도와 같은 때 다시 찬다(/usage에서 확인).
-    gauges.push([...gauge(c, 'fable', s.fableWeek, 5), ...left(resetLabel(week?.resetsAt, now))])
+    gauges.push([...gauge(c, 'fable', s.fableWeek, 5), ...left(resetLabel(s.fableResetsAt ?? week?.resetsAt, now))])
   }
 
   const dot: Segment = { text: ' · ', dim: true }
@@ -307,7 +350,6 @@ function gaugeLayout(s: Snapshot, c: Palette): Layout {
       { text: `🧠 ${family(s.model)}`, color: c.accent, bold: true },
       ...(s.effort === null ? [] : [{ text: ` ${s.effort}`, dim: true }]),
     ],
-    [{ text: `⏱ ${duration(s.elapsedMs)}`, color: c.text }],
     [
       { text: `📁 ${s.folder}`, color: c.primary },
       ...(s.branch === null ? [] : [{ text: ` ⎇ ${s.branch}`, color: c.secondary }]),
@@ -367,8 +409,8 @@ export function layoutWidth(layout: Layout): number {
 export const GAPS = { left: LEFT_GAP, column: COLUMN_GAP }
 
 // 좁은 화면용: 이름표 줄 위, 값 줄 아래. 모델부터 브랜치까지 열을 맞춘다.
-//   MODEL          CONTEXT          5H   7D   FABLE  TIME  BRANCH
-//   🧠 Opus xhigh  ▰▰▰▱▱▱▱▱ 41%     6%   26%  12%    52분  ⎇ main
+//   MODEL          CONTEXT          5H   7D   FABLE  BRANCH
+//   🧠 Opus xhigh  ▰▰▰▱▱▱▱▱ 41%     6%   26%  12%    ⎇ main
 function tilesLayout(s: Snapshot, c: Palette): Layout {
   const head = (text: string): Segment[] => [{ text, color: c.muted }]
   const pct = (value: number): Segment[] => [{ text: `${Math.round(value)}%`, color: levelColor(c, value) }]
@@ -391,7 +433,6 @@ function tilesLayout(s: Snapshot, c: Palette): Layout {
   if (s.fableWeek !== null) {
     columns.push([head('FABLE'), pct(s.fableWeek)])
   }
-  columns.push([head('TIME'), [{ text: duration(s.elapsedMs), color: c.text }]])
   if (s.branch !== null) {
     columns.push([head('BRANCH'), [{ text: `⎇ ${s.branch}`, color: c.secondary }]])
   }

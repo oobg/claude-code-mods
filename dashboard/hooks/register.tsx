@@ -3,7 +3,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Segment, Snapshot, Style, Theme } from '../types'
 import { launchPermissionMode, lastPermissionMode, pullFor, withSection } from './footer'
-import { GAPS, STYLES, THEME_NAMES, buildLayout, parseFableWeek } from './lines'
+import { GAPS, STYLES, THEME_NAMES, buildLayout, parseUsageLimits } from './lines'
+import type { PolledLimit } from './lines'
 
 // 바닥 틀 안의 순서. 다른 구역이 생기면 이 숫자로 위아래를 정한다.
 const ORDER = 20
@@ -24,6 +25,9 @@ const theme = atom({ plugin: 'dashboard', key: 'theme' } as const, null as Theme
 // 0.4.0에서 기본 모양이 gauge로 바뀌었다. 그 전 버전에서 고른 모양('style')은 무시하고 새 키로 저장한다.
 const STYLE_KEY = 'style.v2'
 const FABLE_KEY = 'fableWeek'
+// /usage에서 읽은 한도들. 첫 응답 전에는 Claude Code가 5시간, 주간 한도를 모르므로 이 값으로 그린다.
+const POLLED_KEY = 'polledLimits'
+const polledLimits = atom({ plugin: 'dashboard', key: 'polledLimits' } as const, null as PolledLimit[] | null)
 const STYLE_COMMAND = 'dashboard-style'
 const THEME_KEY = 'theme'
 const THEME_COMMAND = 'dashboard-theme'
@@ -48,9 +52,21 @@ async function currentTheme($: EngineInterface): Promise<Theme> {
   return held !== undefined && held !== null && THEME_NAMES.includes(held) ? held : 'everforest'
 }
 
-async function saveFable($: EngineInterface, value: number): Promise<void> {
-  await update($, fableWeek, () => value)
-  await $.store.set(FABLE_KEY, value)
+async function saveUsage($: EngineInterface, limits: PolledLimit[]): Promise<void> {
+  if (limits.length === 0) {
+    return
+  }
+  await update($, polledLimits, () => limits)
+  await $.store.set(POLLED_KEY, limits)
+  const fable = limits.find(l => l.kind === 'fable')
+  if (fable !== undefined) {
+    await update($, fableWeek, () => fable.percentUsed)
+    await $.store.set(FABLE_KEY, fable.percentUsed)
+  }
+}
+
+async function currentPolled($: EngineInterface): Promise<PolledLimit[]> {
+  return (await read($, polledLimits)) ?? (((await $.store.get(POLLED_KEY)) as PolledLimit[] | undefined) ?? [])
 }
 
 // 뒤에서 /usage를 돌려 Fable 사용량을 새로 읽는다. 실패하면 이전 값을 둔다.
@@ -60,9 +76,8 @@ async function pollFable($: EngineInterface): Promise<void> {
   for (const bin of ['claude', `${home}/.local/bin/claude`, '/opt/homebrew/bin/claude', '/usr/local/bin/claude']) {
     try {
       const { exitCode, stdout } = await $.process.run([bin, ...USAGE_ARGS], { timeoutMs: 30_000 })
-      const found = exitCode === 0 ? parseFableWeek(stdout) : null
-      if (found !== null) {
-        await saveFable($, found)
+      if (exitCode === 0) {
+        await saveUsage($, parseUsageLimits(stdout, await $.clock.now()))
         await refresh($)
       }
       return
@@ -152,13 +167,20 @@ async function render($: EngineInterface): Promise<void> {
     readTranscript($),
   ])
   const mode = transcript === null ? null : lastPermissionMode(transcript.text)
+  const polled = await currentPolled($)
+  const polledFable = polled.find(p => p.kind === 'fable')
   const taken: Snapshot = {
     model,
     effort: await read($, effort),
     context: usage.context,
     costUsd: usage.cost?.usd ?? null,
-    rateLimits: usage.rateLimits,
+    // 첫 응답 전에는 Claude Code가 한도를 모르므로, /usage에서 읽어 둔 값으로 빈 칸을 채운다.
+    rateLimits: [
+      ...usage.rateLimits,
+      ...polled.filter(p => p.kind !== 'fable' && !usage.rateLimits.some(r => r.kind === p.kind)),
+    ],
     fableWeek: await currentFable($),
+    ...(polledFable?.resetsAt === undefined ? {} : { fableResetsAt: polledFable.resetsAt }),
     folder: root.split('/').filter(Boolean).at(-1) ?? root,
     branch,
     email,
@@ -312,9 +334,9 @@ export const register: Register = on => {
   // 사람이 /usage를 실행하면 그 출력에서 이번 주 Fable 사용량을 읽어 둔다. 모드가 /usage를 직접 부르면 대화에 출력이 남아서 부르지 않는다.
   on('command.run', { command: 'usage' }, async ($, e, next) => {
     const result = await next(e)
-    const found = parseFableWeek(result.text ?? '')
-    if (found !== null) {
-      await saveFable($, found)
+    const found = parseUsageLimits(result.text ?? '', await $.clock.now())
+    if (found.length > 0) {
+      await saveUsage($, found)
       void refresh($)
     }
     return result
