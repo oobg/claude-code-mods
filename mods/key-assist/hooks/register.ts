@@ -159,7 +159,7 @@ async function enableUndoKey($: EngineInterface): Promise<void> {
     if (exitCode !== 0) {
       return
     }
-    $.ui.toast('key-assist: Cmd+Z로 입력창을 되돌릴 수 있게 키 설정에 한 줄 더했어요')
+    $.ui.toast('key-assist: Cmd+Z로 입력한 내용을 되돌릴 수 있게 키 설정에 한 줄 추가했어요')
   }
   await $.store.set(UNDO_DONE, true)
 }

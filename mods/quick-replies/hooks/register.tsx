@@ -107,7 +107,7 @@ async function send($: EngineInterface, text: string): Promise<void> {
   }
   const known = (await $.command.list()).some(c => c.name === command.command)
   if (!known) {
-    $.ui.toast(`/${command.command} 명령이나 스킬을 찾지 못했어요`)
+    $.ui.toast(`/${command.command}에 해당하는 명령이나 스킬을 찾지 못했어요`)
     return
   }
   await $.command.run(command)
@@ -363,7 +363,7 @@ export const register: Register = on => {
     const text = e.text.trim()
     await submitInput($, editing, text)
     void $.prompt.fill({ text: '' })
-    return { drop: text === '' && editing.kind !== 'title' ? '빈 문구라 저장하지 않았어요' : SAVED[editing.kind] }
+    return { drop: text === '' && editing.kind !== 'title' ? '문구가 비어 있어서 저장하지 않았어요' : SAVED[editing.kind] }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -528,7 +528,7 @@ export const register: Register = on => {
         <Box flexDirection="row" columnGap={1}>
           <Text color={ACCENT}>{title}</Text>
           <Text dimColor>
-            {editing.kind === 'title' ? '입력창에 접었을 때 보일 짧은 이름을 쓰고 Enter (비우면 문구를 줄여 보여요)' : '입력창에 문구, 또는 /스킬 이름과 문구를 쓰고 Enter'}
+            {editing.kind === 'title' ? '프리셋을 접었을 때 보일 짧은 이름을 입력창에 쓰고 Enter를 눌러 주세요. 비워 두면 문구를 줄여서 보여 줘요' : '입력창에 문구를 쓰거나 /스킬 이름과 문구를 함께 쓰고 Enter를 눌러 주세요'}
           </Text>
           <Button key="cancel" label="$q: 취소" plain onPress={() => cancelInput($)}>
             <Text>
@@ -551,7 +551,7 @@ export const register: Register = on => {
         {group(`로컬 (${projectName})`, 'project')}
         {inputRow}
         {selected === null ? (
-          <Text dimColor>입력창에 숫자를 쳐서 프리셋을 고르면 수정, 제목 달기, 삭제, 옮기기를 할 수 있어요.</Text>
+          <Text dimColor>입력창에 프리셋 번호를 치면 문구 수정, 제목 달기, 삭제, 이동을 할 수 있어요.</Text>
         ) : (
           <Box flexDirection="row" columnGap={2}>
             <Text dimColor>고른 프리셋</Text>
