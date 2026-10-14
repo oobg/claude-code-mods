@@ -13,7 +13,7 @@ const SEPARATOR: Segment = { text: ' │ ', dim: true }
 // 상태 색도 같은 밝기로 맞춰야 한 칸만 튀지 않는다. 테마마다 널리 쓰이는 터미널 색 구성표의 값을 가져왔다.
 //   accent: 모델 이름   primary: 폴더   secondary: 브랜치
 //   text: 숫자(토큰, 요금, 시간, 분당 토큰)   muted: 이름표(한도 이름, 이메일)
-//   ok / warn / orange / high: 컨텍스트와 한도가 찬 정도(여유, 50%부터 노랑, 70%부터 주황, 85%부터 빨강)
+//   ok / warn / orange / high: 컨텍스트와 한도가 찬 정도(40%까지 여유, 55% 노랑, 72% 주황, 90% 빨강으로 섞어 바뀐다)
 export type Palette = {
   accent: string
   primary: string
