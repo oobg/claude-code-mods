@@ -110,10 +110,11 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // 턴이 답으로 끝나면 작은 모델에 한 번 물어 제안을 만든다. 턴 마무리를 붙잡지 않도록 기다리지 않는다.
+  // 메인 대화의 턴이 답으로 끝나면 작은 모델에 한 번 물어 제안을 만든다. 턴 마무리를 붙잡지 않도록 기다리지 않는다.
+  // 서브에이전트의 턴(agentId가 있음)도 이 훅을 지나가는데, 그 보고는 사람이 읽을 답이 아니라 건너뛴다.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.reason === 'answer' && !e.isAborted && e.answer.length >= MIN_ANSWER_CHARS) {
+    if (e.agentId === undefined && e.reason === 'answer' && !e.isAborted && e.answer.length >= MIN_ANSWER_CHARS) {
       void suggest($, e.answer, generation)
     }
     return result

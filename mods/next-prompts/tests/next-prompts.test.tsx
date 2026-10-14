@@ -266,4 +266,17 @@ describe('next-prompts', () => {
     expect(await type('a$', '1')).toEqual({ text: 'a$1', cursor: 3 })
     expect(await type('$', '3')).toEqual({ text: '$3', cursor: 2 })
   })
+
+  test('서브에이전트의 턴이 끝날 때는 제안을 만들지 않는다', async ($, on) => {
+    let asked = 0
+    on('model.complete', () => {
+      asked += 1
+      return { value: { isAnswered: true, text: '테스트 돌려줘', usage: {} } } as never
+    })
+    on('turn.complete', () => ({ text: '' }))
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't', agentId: 'sub-1' } as never)
+    expect(asked).toBe(0)
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't2' } as never)
+    expect(asked).toBe(1)
+  })
 })
