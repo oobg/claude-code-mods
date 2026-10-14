@@ -6,12 +6,13 @@
 //     Box(key=oobg-band:<순서>:<이름>)   ← 각 모드의 줄, 순서대로
 // 모드는 next(e)로 받은 틀에 자기 줄만 끼워 넣어 돌려준다. 틀이 아니면 새로 만든다.
 //
-// 숫자 단축키(1~9)는 줄마다 따로 붙이지 않고, 틀을 합칠 때 위에서부터 다시 매긴다.
-// 그래서 위 줄이 없으면 아래 줄이 1부터 시작한다. 0과 글자 단축키는 그대로 둔다.
+// 번호($1~$9)는 각 모드가 스스로 매긴다. 다음 제안이 $1부터, 프리셋은 떠 있는 제안 개수 다음부터다.
+// 띠를 합치는 순서는 모드마다 다르게 보이므로 번호를 여기서 매기지 않는다.
+// 입력창에 `$2`처럼 치면 그 번호의 문구로 바뀐다(`typedNumber`). 빈 입력창의 숫자 하나는 더 이상 버튼을 누르지 않는다.
 //
 // 한 모드가 띠를 혼자 써야 할 때(편집 화면 등)는 `exclusiveBand`로 만든 틀을 돌려준다.
 // 다른 모드는 그 틀을 보면 자기 줄을 넣지 않고 그대로 넘긴다.
-import type { RenderElement, RenderNode } from 'claude-code'
+import type { PromptEditInput, RenderElement, RenderNode } from 'claude-code'
 
 const BAND_KEY = 'oobg-band'
 const EXCLUSIVE_KEY = 'oobg-band-exclusive'
@@ -33,27 +34,20 @@ function orderOf(node: RenderNode): number {
   return Number(keyOf(node)?.split(':')[1] ?? 0)
 }
 
-// 트리를 문서 순서로 돌며 숫자 단축키를 1부터 다시 매긴다. 9를 넘는 버튼은 단축키를 뗀다.
-function renumber(nodes: RenderNode[]): RenderNode[] {
-  let next = 1
-  const walk = (node: RenderNode): RenderNode => {
-    if (!isElement(node)) {
-      return node
-    }
-    if (node.type === 'Button') {
-      const hotkey = node.props.hotkey
-      if (hotkey === undefined || !/^[1-9]$/.test(hotkey)) {
-        return node
-      }
-      const { hotkey: _old, ...rest } = node.props
-      return next <= 9 ? { ...node, props: { ...rest, hotkey: String(next++) } } : { ...node, props: rest }
-    }
-    if ((node.type === 'Box' || node.type === 'Text') && node.children !== undefined) {
-      return { ...node, children: node.children.map(walk) }
-    }
-    return node
+// 번호는 9까지만 붙인다. `$10`은 `$1`을 친 순간 이미 바뀌기 때문이다.
+export const MAX_NUMBER = 9
+
+// 띠에 보이는 번호 표시.
+export const numberLabel = (n: number) => `$${n}:`
+
+// 방금 친 숫자 하나가 `$` 바로 뒤이고 그 `$`가 글 처음이나 공백 뒤에 있으면 그 번호를 낸다.
+// 바꿀 때는 `next({ ...e, start: e.start - 1, inputText: 문구 })`로 `$`까지 덮는다.
+export function typedNumber(e: PromptEditInput): number | undefined {
+  if (e.key === undefined || !/^[1-9]$/.test(e.inputText) || e.start !== e.end || e.text[e.start - 1] !== '$') {
+    return undefined
   }
-  return nodes.map(walk)
+  const before = e.text[e.start - 2]
+  return before === undefined || /\s/.test(before) ? Number(e.inputText) : undefined
 }
 
 // 띠를 혼자 쓰는 틀. 다른 모드는 이 틀에 줄을 넣지 않는다.
@@ -91,5 +85,5 @@ export function withBandSection(
     return isBand ? { type: 'Box', props: { key: BAND_KEY }, children: [] } : below
   }
   // 띠와 입력창 사이의 빈 줄은 Claude Code가 늘 두는 간격이다. 음수 여백으로 당기면 띠가 아예 그려지지 않아 그대로 둔다.
-  return { type: 'Box', props: { key: BAND_KEY, flexDirection: 'column' }, children: renumber(sections) }
+  return { type: 'Box', props: { key: BAND_KEY, flexDirection: 'column' }, children: sections }
 }

@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { EditInput, Mode, Reply, Scope } from '../types'
-import { exclusiveBand, withBandSection } from './band'
+import { MAX_NUMBER, exclusiveBand, numberLabel, typedNumber, withBandSection } from './band'
 import { TITLE_SYSTEM, needsTitle, parseTitle, shortTitle, titlePrompt } from './title'
 
 export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞아 그렇게 진행해']
@@ -17,6 +17,19 @@ const globalReplies = atom({ plugin: 'quick-replies', key: 'globalReplies' } as 
 const projectReplies = atom({ plugin: 'quick-replies', key: 'projectReplies' } as const, null)
 const mode = atom({ plugin: 'quick-replies', key: 'mode' } as const, { kind: 'view' } as Mode)
 const compact = atom({ plugin: 'quick-replies', key: 'compact' } as const, null)
+
+// next-prompts가 띄운 다음 제안. 프리셋 번호는 그 개수 다음부터 매긴다. next-prompts가 없으면 비어 있다.
+// 이 모드의 상태가 아니라서 계약에 적지 않고, 모양도 믿지 않고 걸러 읽는다.
+const nextSuggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as never, [] as never)
+
+async function suggestionCount($: EngineInterface): Promise<number> {
+  try {
+    const list: unknown = await read($, nextSuggestions)
+    return Array.isArray(list) ? list.filter(item => typeof item === 'string').length : 0
+  } catch {
+    return 0
+  }
+}
 
 const GLOBAL_KEY = 'global'
 const COMPACT_KEY = 'compact'
@@ -249,6 +262,19 @@ export const register: Register = on => {
     return result
   })
 
+  // 입력창에 `$5`처럼 치면 그 자리를 그 번호의 프리셋 문구로 바꾼다. 번호는 띠에 보이는 것과 같게 셈한다.
+  on('prompt.edit', async ($, e, next) => {
+    const n = typedNumber(e)
+    if (n !== undefined && (await read($, mode)).kind === 'view') {
+      const presets = await current($)
+      const reply = [...presets.global, ...presets.project][n - 1 - (await suggestionCount($))]
+      if (reply !== undefined) {
+        return next({ ...e, start: e.start - 1, inputText: reply.text })
+      }
+    }
+    return next(e)
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // 띠는 터미널과 데스크톱에만 그려지고, 편집에 쓰는 Input도 그 둘에만 있다.
     if (e.props.hasSurvey || (e.surface !== 'terminal' && e.surface !== 'desktop')) {
@@ -262,29 +288,30 @@ export const register: Register = on => {
     if (shown.kind === 'view') {
       const below = await next(e)
       const folded = await isCompact($)
-      // 숫자 단축키는 띠 틀이 위에서부터 다시 매긴다. 여기서는 순서만 정해 두고 1부터 붙인다.
-      // 프리셋 하나는 버튼 두 개다. 번호(`1:`)는 숫자를 누르거나 클릭하면 문구를 입력창에 넣기만 하고,
-      // 문구는 클릭하면 바로 보낸다. 버튼은 무엇으로 눌렸는지 알 수 없어 둘로 나눴다.
-      let hotkey = 0
+      // 번호는 다음 제안 다음부터 이어 붙인다. 작업 중에는 다음 제안이 숨으므로 1부터다.
+      // 프리셋 하나는 버튼 두 개다. 번호(`$1:`)는 클릭하면 문구를 입력창에 넣기만 하고, 문구는 클릭하면 바로 보낸다.
+      // 입력창에 `$1`을 치면 번호를 클릭하지 않아도 그 자리에 들어간다(prompt.edit).
+      let number = e.props.isWorking ? 0 : await suggestionCount($)
       const item = (reply: Reply) => {
-        hotkey += 1
+        number += 1
         // 접으면 제목을, 펼치면 문구를 보인다. 보이는 글이 /명령으로 시작하면 그 부분만 칠한다.
         const label = folded ? shortTitle(reply) : reply.text
         const command = parseCommand(reply.text)
         const prefix = command === null ? '' : `/${command.command}`
         const isCommand = prefix !== '' && label.startsWith(prefix)
         return (
-          <Box key={`item:${reply.id}`} flexDirection="row">
-            {hotkey <= 9 && (
+          <Box key={`item:${reply.id}`} flexDirection="row" columnGap={1}>
+            {number <= MAX_NUMBER && (
               <Button
                 key={`fill:${reply.id}`}
-                label=""
-                hotkey={String(hotkey)}
+                label={numberLabel(number)}
                 plain
                 onPress={() => {
                   void $.prompt.fill({ text: reply.text })
                 }}
-              />
+              >
+                <Text color={ACCENT}>{numberLabel(number)}</Text>
+              </Button>
             )}
             <Button
               key={`send:${reply.id}`}

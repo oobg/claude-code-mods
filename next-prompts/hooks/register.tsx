@@ -2,11 +2,13 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Suggestions } from '../types'
-import { withBandSection } from './band'
+import { MAX_NUMBER, numberLabel, typedNumber, withBandSection } from './band'
 import { MIN_ANSWER_CHARS, SYSTEM, buildPrompt, parseSuggestions } from './suggest'
 
 // 띠 안의 순서. quick-replies 프리셋 줄(20) 위에 온다.
 const ORDER = 10
+// 번호 색. Claude Code가 입력창의 /명령에 쓰는 테마 색이다.
+const ACCENT = 'suggestion'
 
 const suggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as const, [] as Suggestions)
 const lastPrompt = atom({ plugin: 'next-prompts', key: 'lastPrompt' } as const, '')
@@ -43,6 +45,19 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // 입력창에 `$2`처럼 치면 그 자리를 2번 제안으로 바꾼다. 제안은 늘 $1부터라 다른 모드의 번호를 몰라도 된다.
+  on('prompt.edit', async ($, e, next) => {
+    const n = typedNumber(e)
+    if (n !== undefined) {
+      const list = (await read($, suggestions)).filter(item => typeof item === 'string')
+      const text = list[n - 1]
+      if (text !== undefined) {
+        return next({ ...e, start: e.start - 1, inputText: text })
+      }
+    }
+    return next(e)
+  })
+
   // 턴이 답으로 끝나면 작은 모델에 한 번 물어 제안을 만든다. 턴 마무리를 붙잡지 않도록 기다리지 않는다.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
@@ -67,21 +82,24 @@ export const register: Register = on => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const clear = () => update($, suggestions, () => [])
 
-    // 제안 하나는 버튼 두 개다. 번호(`1:`)는 숫자 1~3을 누르거나 클릭하면 입력창에 초안으로 넣기만 하고,
-    // 문구는 클릭하면 바로 보낸다. 버튼은 무엇으로 눌렸는지 알 수 없어 둘로 나눴다.
+    // 제안 하나는 버튼 두 개다. 번호(`$1:`)는 클릭하면 입력창에 초안으로 넣기만 하고, 문구는 클릭하면 바로 보낸다.
+    // 입력창에 `$1`을 치면 번호를 클릭하지 않아도 그 자리에 들어간다(prompt.edit).
     // 제안은 접지 않고 늘 전체 문구로 보인다(quick-replies의 0은 프리셋만 접는다). 닫기는 클릭으로만 한다.
     const pick = (text: string, i: number) => (
-      <Box key={`item:${i + 1}`} flexDirection="row">
-        <Button
-          key={`pick:${i + 1}`}
-          label=""
-          hotkey={String(i + 1)}
-          plain
-          onPress={async () => {
-            await $.prompt.fill({ text })
-            await clear()
-          }}
-        />
+      <Box key={`item:${i + 1}`} flexDirection="row" columnGap={1}>
+        {i < MAX_NUMBER && (
+          <Button
+            key={`pick:${i + 1}`}
+            label={numberLabel(i + 1)}
+            plain
+            onPress={async () => {
+              await $.prompt.fill({ text })
+              await clear()
+            }}
+          >
+            <Text color={ACCENT}>{numberLabel(i + 1)}</Text>
+          </Button>
+        )}
         <Button
           key={`go:${i + 1}`}
           label={text}

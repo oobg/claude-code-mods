@@ -36,7 +36,7 @@ function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}, drawB
 }
 
 describe('quick-replies', () => {
-  test('제안 줄이 없으면 전역 기본 프리셋 두 개에 1, 2를 붙인다. 번호는 입력창에 넣고, 문구를 클릭하면 사용자 말로 보낸다', async ($, on) => {
+  test('제안 줄이 없으면 전역 기본 프리셋 두 개에 $1, $2를 붙인다. 번호는 입력창에 넣고, 문구를 클릭하면 사용자 말로 보낸다', async ($, on) => {
     inRepo(on, '/repo/one')
     let sent: { text: string; asUser?: true }[] = []
     let filled: string[] = []
@@ -51,8 +51,10 @@ describe('quick-replies', () => {
 
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'quick-replies', surface, ...BAND })
-      expect((await ui.find({ key: 'fill:default-0' }))?.props?.hotkey).toBe('1')
-      expect((await ui.find({ key: 'fill:default-1' }))?.props?.hotkey).toBe('2')
+      // 번호는 `$1:`로 보이고, 빈 입력창의 숫자 하나로 눌리지 않는다.
+      expect((await ui.find({ key: 'fill:default-0' }))?.props?.label).toBe('$1:')
+      expect((await ui.find({ key: 'fill:default-1' }))?.props?.label).toBe('$2:')
+      expect((await ui.find({ key: 'fill:default-0' }))?.props?.hotkey).toBeUndefined()
       expect((await ui.find({ key: 'send:default-1' }))?.props?.hotkey).toBeUndefined()
       sent = []
       filled = []
@@ -97,13 +99,13 @@ describe('quick-replies', () => {
 
     // q: 완료. 전역: 커밋해줘 / 로컬: /ux-writing…, 어디까지 했어?
     await ui.press({ key: 'done' })
-    const hotkeyOf = async (text: string) => {
+    const numberOf = async (text: string) => {
       const key = String((await ui.find({ type: 'Button', text }))?.props?.key)
-      return (await ui.find({ key: key.replace('send:', 'fill:') }))?.props?.hotkey
+      return (await ui.find({ key: key.replace('send:', 'fill:') }))?.props?.label
     }
-    expect(await hotkeyOf('커밋해줘')).toBe('1')
-    expect(await hotkeyOf('/ux-writing 문구 다듬어줘')).toBe('2')
-    expect((await ui.find({ key: 'fill:default-0' }))?.props?.hotkey).toBe('3')
+    expect(await numberOf('커밋해줘')).toBe('$1:')
+    expect(await numberOf('/ux-writing 문구 다듬어줘')).toBe('$2:')
+    expect((await ui.find({ key: 'fill:default-0' }))?.props?.label).toBe('$3:')
     expect(await ui.find({ type: 'Text', text: '로컬' })).toBeDefined()
     await ui.unmount()
   })
@@ -136,7 +138,7 @@ describe('quick-replies', () => {
     expect(await ui.find({ key: 'group:project' })).toBeDefined()
     expect(await ui.findAll({ type: 'Text', text: '|' })).toHaveLength(2)
     expect(await ui.find({ type: 'Text', text: '/ux-writing' })).toBeDefined()
-    expect((await ui.find({ key: 'fill:p1' }))?.props?.hotkey).toBe('4')
+    expect((await ui.find({ key: 'fill:p1' }))?.props?.label).toBe('$4:')
     // 접어도 보내는 건 원래 문구다.
     await ui.press({ key: 'send:g1' })
     expect(sent).toEqual(['지금 어디까지 진행했는지 알려줘'])
@@ -246,14 +248,15 @@ describe('quick-replies', () => {
 
   test('다른 모드가 띠 틀에 넣은 줄 아래에 프리셋 줄을 끼워 넣는다', async ($, on) => {
     inRepo(on, '/repo/one', {}, false)
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Box, Button, Text } = $.ui.resolve(e)
       return (
         <Box key="oobg-band" flexDirection="column">
           <Box key="oobg-band:10:next-prompts">
             <Text>다음 제안 줄</Text>
-            <Button key="pick:1" label="가" hotkey="1" plain onPress={() => {}} />
-            <Button key="pick:2" label="나" hotkey="2" plain onPress={() => {}} />
+            <Button key="pick:1" label="$1:" plain onPress={() => {}} />
+            <Button key="pick:2" label="$2:" plain onPress={() => {}} />
           </Box>
         </Box>
       )
@@ -262,8 +265,8 @@ describe('quick-replies', () => {
     expect(await ui.find({ type: 'Text', text: '다음 제안 줄' })).toBeDefined()
     expect(await ui.find({ key: 'oobg-band:10:next-prompts' })).toBeDefined()
     expect(await ui.find({ key: 'oobg-band:20:quick-replies' })).toBeDefined()
-    // 위 줄의 제안 1~2 다음부터 프리셋 번호가 이어진다.
-    expect((await ui.find({ key: 'fill:default-0' }))?.props?.hotkey).toBe('3')
+    // 다음 제안 두 개 다음부터 프리셋 번호가 이어진다.
+    expect((await ui.find({ key: 'fill:default-0' }))?.props?.label).toBe('$3:')
     await ui.unmount()
   })
 
@@ -321,5 +324,25 @@ describe('quick-replies', () => {
     expect(await ui.find({ key: 'edit' })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: 'engine-band' })).toBeDefined()
     await ui.unmount()
+  })
+
+  test('입력창에 `$3`을 치면 다음 제안 두 개 다음 번호인 첫 프리셋으로 바꾸고, 제안 번호는 건드리지 않는다', async ($, on) => {
+    inRepo(on, '/repo/one')
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    const type = (text: string, digit: string) =>
+      ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string; cursor: number }> }).edit({
+        origin: { kind: 'composer' },
+        key: { key: digit },
+        text,
+        cursor: text.length,
+        start: text.length,
+        end: text.length,
+        inputText: digit,
+      })
+    expect((await type('그리고 $', '3')).text).toBe('그리고 지금 진행상황')
+    expect((await type('$', '4')).text).toBe('맞아 그렇게 진행해')
+    expect((await type('$', '1')).text).toBe('$1')
+    expect((await type('$', '5')).text).toBe('$5')
   })
 })

@@ -35,7 +35,7 @@ describe('next-prompts', () => {
     expect(prompt.length).toBeLessThan(5200)
   })
 
-  test('제안이 있으면 띠에 숫자 단축키 버튼으로 그리고, 번호를 고르면 입력창에 초안으로 넣고 띠를 닫는다', async ($, on) => {
+  test('제안이 있으면 띠에 $번호 버튼으로 그리고, 번호를 고르면 입력창에 초안으로 넣고 띠를 닫는다', async ($, on) => {
     mock.store(on)
     const filled: string[] = []
     on('prompt.fill', (_$, e) => {
@@ -60,7 +60,9 @@ describe('next-prompts', () => {
       await ui.unmount()
       ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
     }
-    expect((await ui.find({ key: 'pick:1' }))?.props?.hotkey).toBe('1')
+    // 번호는 `$1:`로 보이고, 빈 입력창의 숫자 하나로 눌리지 않는다.
+    expect((await ui.find({ key: 'pick:1' }))?.props?.label).toBe('$1:')
+    expect((await ui.find({ key: 'pick:1' }))?.props?.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'go:1' }))?.props?.hotkey).toBeUndefined()
     expect(await ui.find({ key: 'pick:2' })).toBeDefined()
     await ui.press({ key: 'pick:2' })
@@ -123,5 +125,24 @@ describe('next-prompts', () => {
     expect(sent).toEqual(['커밋해줘'])
     expect(await ui.find({ key: 'go:1' })).toBeUndefined()
     await ui.unmount()
+  })
+
+  test('입력창에 `$2`를 치면 그 자리를 2번 제안으로 바꾸고, 낱말 중간의 $나 없는 번호는 그대로 둔다', async ($, on) => {
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: ['테스트 돌려줘', '커밋해줘'], version: 1 } }) as never)
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    const type = (text: string, digit: string) =>
+      ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string; cursor: number }> }).edit({
+        origin: { kind: 'composer' },
+        key: { key: digit },
+        text,
+        cursor: text.length,
+        start: text.length,
+        end: text.length,
+        inputText: digit,
+      })
+    expect(await type('끝나면 $', '2')).toEqual({ text: '끝나면 커밋해줘', cursor: 8 })
+    expect(await type('$', '1')).toEqual({ text: '테스트 돌려줘', cursor: 7 })
+    expect(await type('a$', '1')).toEqual({ text: 'a$1', cursor: 3 })
+    expect(await type('$', '3')).toEqual({ text: '$3', cursor: 2 })
   })
 })
