@@ -33,50 +33,38 @@ claude-code-mods는 Claude Code 입력창 주변에 기능을 추가하는 모�
 <table>
 <tr>
 <td width="50%" valign="top">
-
-<picture>
+<a href="./docs/next-prompts.md"><picture>
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/suggest-dark.gif">
 <img alt="next-prompts: 턴이 끝나면 다음에 보낼 만한 요청이 하나씩 나타난다" src="./docs/images/showcase/suggest-light.gif" width="100%">
-</picture>
-
-**[next-prompts](./docs/next-prompts.md)**<br>
+</picture></a>
+<br><a href="./docs/next-prompts.md"><b>next-prompts</b></a><br>
 <sub>턴이 끝나면 다음에 보낼 만한 요청을 2~3개 제안한다. <code>$1</code>을 치거나 번호를 클릭하면 입력창에 들어가고, 문구를 클릭하면 바로 보낸다</sub>
-
 </td>
 <td width="50%" valign="top">
-
-<picture>
+<a href="./docs/quick-replies.md"><picture>
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/substitute-dark.gif">
 <img alt="quick-replies: 입력창에 $2를 치면 그 자리에 2번 문구가 들어간다" src="./docs/images/showcase/substitute-light.gif" width="100%">
-</picture>
-
-**[quick-replies](./docs/quick-replies.md)**<br>
+</picture></a>
+<br><a href="./docs/quick-replies.md"><b>quick-replies</b></a><br>
 <sub>자주 쓰는 문구를 전역과 저장소별 프리셋으로 저장한다. 입력창에 <code>$4</code>처럼 번호를 치면 그 문구가 들어간다</sub>
-
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-
-<picture>
+<a href="./docs/dashboard.md"><picture>
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/gauge-dark.gif">
 <img alt="dashboard: 컨텍스트 게이지가 차면서 색이 바뀐다" src="./docs/images/showcase/gauge-light.gif" width="100%">
-</picture>
-
-**[dashboard](./docs/dashboard.md)**<br>
+</picture></a>
+<br><a href="./docs/dashboard.md"><b>dashboard</b></a><br>
 <sub>모델, 컨텍스트, 사용 한도, 브랜치를 입력창 아래 두 줄로 보여 준다. 게이지가 찰수록 색이 노랑, 주황, 빨강으로 바뀐다</sub>
-
 </td>
 <td width="50%" valign="top">
-
-<picture>
+<a href="./docs/key-assist.md"><picture>
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/paste-dark.gif">
 <img alt="key-assist: 붙여넣은 파일 이름이 @경로로 바뀐다" src="./docs/images/showcase/paste-light.gif" width="100%">
-</picture>
-
-**[key-assist](./docs/key-assist.md)**<br>
+</picture></a>
+<br><a href="./docs/key-assist.md"><b>key-assist</b></a><br>
 <sub>Finder에서 복사한 파일을 붙여넣으면 파일 이름이 <code>@경로</code>로 바뀐다. Cmd+Z로 입력한 내용을 되돌린다</sub>
-
 </td>
 </tr>
 </table>

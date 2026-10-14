@@ -1,12 +1,14 @@
 # GitHub Pages 설정. 저장소 루트를 사이트로 쓴다: README.md가 첫 화면, docs/*.md가 모드 문서다.
+# 화면은 _layouts/default.html이 GitHub README와 같은 모양으로 그린다.
 title: claude-code-mods
 description: Claude Code 입력창 주변에 기능을 추가하는 모드 모음
 lang: ko
-theme: jekyll-theme-primer
 exclude:
   - mods
   - demo
   - .claude-plugin
-# 표(<td>) 안에 쓴 마크다운 링크도 읽는다. 그래야 .md 링크가 사이트에서 .html로 바뀐다.
-kramdown:
-  parse_block_html: true
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
