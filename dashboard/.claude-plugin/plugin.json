@@ -1,8 +1,10 @@
 {
   "name": "dashboard",
   "version": "0.1.0",
-  "description": "claude-dashboard 상태줄을 입력창 아래 권한 모드 줄 밑에 그린다. quick-replies 버튼과 한 틀을 나눠 쓴다",
-  "author": { "name": "oobg" },
+  "description": "claude-dashboard 상태줄을 입력창 아래 권한 모드 줄 밑에 그린다",
+  "author": {
+    "name": "oobg"
+  },
   "license": "MIT",
   "types": "./types/index.d.ts"
 }

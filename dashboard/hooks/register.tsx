@@ -5,7 +5,7 @@ import type { Segment } from '../types'
 import { parseAnsi } from './ansi'
 import { lastPermissionMode, pullFor, withSection } from './footer'
 
-// 바닥 틀 안의 순서. quick-replies 버튼(10) 아래에 온다.
+// 바닥 틀 안의 순서. 다른 구역이 생기면 이 숫자로 위아래를 정한다.
 const ORDER = 20
 // 대시보드의 시간, 요금 한도 같은 값이 메시지 없이도 바뀌므로 이 간격으로 다시 그린다.
 const REFRESH_MS = 30_000

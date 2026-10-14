@@ -1,7 +1,7 @@
 {
   "name": "quick-replies",
-  "version": "0.3.0",
-  "description": "입력창 위에 자주 쓰는 답장 버튼을 두고, 누르면 바로 보낸다. 버튼 목록은 저장소마다 따로 고친다",
+  "version": "0.4.0",
+  "description": "전역과 프로젝트별 프리셋 문구를 입력창 위 버튼으로 두고, 누르거나 숫자 4~9로 바로 보낸다",
   "types": "./types/index.d.ts",
   "license": "MIT",
   "author": {

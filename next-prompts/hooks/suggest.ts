@@ -1,0 +1,57 @@
+// 작은 모델에게 보낼 요청과, 그 답에서 제안을 골라내는 부분. $를 쓰지 않는 순수 함수만 둔다.
+
+// 짧은 답 뒤에는 제안할 거리가 적고 호출 비용만 든다.
+export const MIN_ANSWER_CHARS = 120
+// 띠 한 줄에 들어가도록 제안 하나의 길이를 자른다.
+const MAX_SUGGESTION_CHARS = 40
+const MAX_SUGGESTIONS = 3
+// 모델에 넘기는 대화는 끝부분만 쓴다.
+const MAX_CONTEXT_CHARS = 4000
+
+export const SYSTEM = [
+  '너는 코딩 어시스턴트 세션을 보고, 사용자가 바로 다음에 입력할 만한 짧은 요청을 고른다.',
+  '규칙:',
+  '- 2개 또는 3개를 고른다. 한 줄에 하나, 번호나 기호 없이 요청 문장만 쓴다.',
+  '- 사용자가 쓴 언어와 말투를 따른다.',
+  `- 각 요청은 ${MAX_SUGGESTION_CHARS}자 이내로, 바로 실행할 수 있게 구체적으로 쓴다.`,
+  '- 어시스턴트가 이미 끝낸 일이나 사용자가 이미 거절한 일은 고르지 않는다.',
+  '- 고를 만한 게 없으면 아무것도 쓰지 않는다.',
+].join('\n')
+
+function tail(text: string, max: number): string {
+  return text.length <= max ? text : `…${text.slice(text.length - max)}`
+}
+
+export function buildPrompt(userPrompt: string, answer: string): string {
+  return [
+    '<사용자의 마지막 요청>',
+    tail(userPrompt, 1000),
+    '</사용자의 마지막 요청>',
+    '<어시스턴트의 마지막 답>',
+    tail(answer, MAX_CONTEXT_CHARS),
+    '</어시스턴트의 마지막 답>',
+    '다음에 입력할 만한 요청:',
+  ].join('\n')
+}
+
+// 모델의 답에서 제안 줄만 고른다. 번호, 글머리표, 따옴표는 걷어 낸다.
+export function parseSuggestions(reply: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of reply.split('\n')) {
+    const line = raw
+      .trim()
+      .replace(/^(\d+[.)]|[-*•])\s*/, '')
+      .replace(/^["'“‘](.*)["'”’]$/, '$1')
+      .trim()
+    if (line === '' || line.length > MAX_SUGGESTION_CHARS || seen.has(line)) {
+      continue
+    }
+    seen.add(line)
+    out.push(line)
+    if (out.length === MAX_SUGGESTIONS) {
+      break
+    }
+  }
+  return out
+}

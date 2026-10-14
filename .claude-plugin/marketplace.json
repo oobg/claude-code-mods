@@ -1,16 +1,23 @@
 {
   "name": "oobg",
-  "owner": { "name": "oobg" },
+  "owner": {
+    "name": "oobg"
+  },
   "plugins": [
+    {
+      "name": "next-prompts",
+      "source": "./next-prompts",
+      "description": "턴이 끝나면 다음에 보낼 만한 프롬프트 2~3개를 입력창 위에 제안한다. 숫자로 골라 초안으로 넣는다"
+    },
     {
       "name": "quick-replies",
       "source": "./quick-replies",
-      "description": "자주 쓰는 답장을 입력창 아래 버튼으로 두고, 누르면 바로 보낸다. 버튼 목록은 저장소마다 따로 고친다"
+      "description": "전역과 프로젝트별 프리셋 문구를 입력창 위 버튼으로 두고, 누르거나 숫자 4~9로 바로 보낸다"
     },
     {
       "name": "dashboard",
       "source": "./dashboard",
-      "description": "claude-dashboard 상태줄을 입력창 아래 권한 모드 줄 밑에 그린다. quick-replies 버튼과 한 틀을 나눠 쓴다"
+      "description": "claude-dashboard 상태줄을 입력창 아래 권한 모드 줄 밑에 그린다"
     }
   ]
 }
