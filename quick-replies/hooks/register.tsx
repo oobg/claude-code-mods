@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { EditInput, Mode, Reply, Scope } from '../types'
-import { MAX_NUMBER, exclusiveBand, numberLabel, typedNumber, withBandSection } from './band'
+import { MAX_NUMBER, exclusiveBand, numberLabel, typedAfterDollar, typedNumber, withBandSection } from './band'
 import { TITLE_SYSTEM, needsTitle, parseTitle, shortTitle, titlePrompt } from './title'
 
 export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞아 그렇게 진행해']
@@ -263,7 +263,14 @@ export const register: Register = on => {
   })
 
   // 입력창에 `$5`처럼 치면 그 자리를 그 번호의 프리셋 문구로 바꾼다. 번호는 띠에 보이는 것과 같게 셈한다.
+  // `$e`는 편집 화면을 열고 `$0`은 프리셋을 접거나 편다. 이때 친 `$e`, `$0`은 입력창에 남기지 않는다.
   on('prompt.edit', async ($, e, next) => {
+    const typed = typedAfterDollar(e)
+    if ((typed === 'e' || typed === '0') && (await read($, mode)).kind === 'view') {
+      const box = await next({ ...e, start: e.start - 1, inputText: '' })
+      void (typed === 'e' ? openEditor($) : toggleCompact($))
+      return box
+    }
     const n = typedNumber(e)
     if (n !== undefined && (await read($, mode)).kind === 'view') {
       const presets = await current($)
@@ -356,16 +363,17 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Box flexDirection="row" columnGap={2}>
             <Text dimColor>전역</Text>
-            {/* 띠에 포커스가 있을 때(ctrl+x tab) e로 편집 화면을 연다. 그 뒤로는 키 하나로 다 고친다. */}
-            <Button key="edit" label="편집" hotkey="e" plain dimColor onPress={() => openEditor($)} />
-            <Button
-              key="compact"
-              label={folded ? '펼치기' : '접기'}
-              hotkey="0"
-              plain
-              dimColor
-              onPress={() => toggleCompact($)}
-            />
+            {/* 입력창에 $e를 치거나 클릭하면 편집 화면을 연다. 그 뒤로는 키 하나로 다 고친다. $0은 접고 편다. */}
+            <Button key="edit" label="$e: 편집" plain onPress={() => openEditor($)}>
+              <Text>
+                <Text color={ACCENT}>$e:</Text> <Text dimColor>편집</Text>
+              </Text>
+            </Button>
+            <Button key="compact" label={folded ? '$0: 펼치기' : '$0: 접기'} plain onPress={() => toggleCompact($)}>
+              <Text>
+                <Text color={ACCENT}>$0:</Text> <Text dimColor>{folded ? '펼치기' : '접기'}</Text>
+              </Text>
+            </Button>
           </Box>
           {presets.global.length > 0 && group('global', presets.global)}
           {presets.project.length > 0 && <Text dimColor>로컬</Text>}

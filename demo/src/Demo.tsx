@@ -42,7 +42,9 @@ const Band = ({ hit }: { hit?: number }) => {
       {item(1, '방금 만든 테스트 돌려줘')}
       {item(2, '커밋해줘')}
       <div style={{ height: 12 }} />
-      <Row color={C.dim}> 전역  e: 편집  0: 접기</Row>
+      <Row color={C.dim}>
+        {' '}전역  <span style={{ color: C.accent }}>$e:</span> 편집  <span style={{ color: C.accent }}>$0:</span> 접기
+      </Row>
       {item(3, '지금 진행상황')}
       {item(4, '맞아 그렇게 진행해')}
     </div>

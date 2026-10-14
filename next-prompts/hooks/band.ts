@@ -9,6 +9,7 @@
 // 번호($1~$9)는 각 모드가 스스로 매긴다. 다음 제안이 $1부터, 프리셋은 떠 있는 제안 개수 다음부터다.
 // 띠를 합치는 순서는 모드마다 다르게 보이므로 번호를 여기서 매기지 않는다.
 // 입력창에 `$2`처럼 치면 그 번호의 문구로 바뀐다(`typedNumber`). 빈 입력창의 숫자 하나는 더 이상 버튼을 누르지 않는다.
+// `$e`, `$0`처럼 `$` 뒤의 글자 하나는 모드가 정한 동작을 부른다(`typedAfterDollar`).
 //
 // 한 모드가 띠를 혼자 써야 할 때(편집 화면 등)는 `exclusiveBand`로 만든 틀을 돌려준다.
 // 다른 모드는 그 틀을 보면 자기 줄을 넣지 않고 그대로 넘긴다.
@@ -40,14 +41,19 @@ export const MAX_NUMBER = 9
 // 띠에 보이는 번호 표시.
 export const numberLabel = (n: number) => `$${n}:`
 
-// 방금 친 숫자 하나가 `$` 바로 뒤이고 그 `$`가 글 처음이나 공백 뒤에 있으면 그 번호를 낸다.
-// 바꿀 때는 `next({ ...e, start: e.start - 1, inputText: 문구 })`로 `$`까지 덮는다.
-export function typedNumber(e: PromptEditInput): number | undefined {
-  if (e.key === undefined || !/^[1-9]$/.test(e.inputText) || e.start !== e.end || e.text[e.start - 1] !== '$') {
+// 방금 친 글자 하나가 `$` 바로 뒤이고 그 `$`가 글 처음이나 공백 뒤에 있으면 그 글자를 낸다.
+export function typedAfterDollar(e: PromptEditInput): string | undefined {
+  if (e.key === undefined || !/^[0-9a-z]$/.test(e.inputText) || e.start !== e.end || e.text[e.start - 1] !== '$') {
     return undefined
   }
   const before = e.text[e.start - 2]
-  return before === undefined || /\s/.test(before) ? Number(e.inputText) : undefined
+  return before === undefined || /\s/.test(before) ? e.inputText : undefined
+}
+
+// `$1`~`$9`를 쳤으면 그 번호를 낸다. 바꿀 때는 `next({ ...e, start: e.start - 1, inputText: 문구 })`로 `$`까지 덮는다.
+export function typedNumber(e: PromptEditInput): number | undefined {
+  const typed = typedAfterDollar(e)
+  return typed !== undefined && /^[1-9]$/.test(typed) ? Number(typed) : undefined
 }
 
 // 띠를 혼자 쓰는 틀. 다른 모드는 이 틀에 줄을 넣지 않는다.

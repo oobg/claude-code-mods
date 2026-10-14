@@ -70,7 +70,7 @@ describe('quick-replies', () => {
   test('편집 화면은 키 하나로 추가, 고르기, 수정, 삭제, 옮기기, 순서 바꾸기를 한다', async ($, on) => {
     inRepo(on, '/repo/one')
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
-    expect((await ui.find({ key: 'edit' }))?.props?.hotkey).toBe('e')
+    expect((await ui.find({ key: 'edit' }))?.props?.label).toBe('$e: 편집')
     await ui.press({ key: 'edit' })
     expect((await ui.find({ key: 'add-global' }))?.props?.hotkey).toBe('a')
     expect((await ui.find({ key: 'select:default-0' }))?.props?.hotkey).toBe('1')
@@ -110,7 +110,7 @@ describe('quick-replies', () => {
     await ui.unmount()
   })
 
-  test('0으로 접으면 범위마다 한 줄에 제목만 잇고, 다시 누르면 펼친다. 접힘은 저장해 둔다', async ($, on) => {
+  test('$0으로 접으면 범위마다 한 줄에 제목만 잇고, 다시 누르면 펼친다. 접힘은 저장해 둔다', async ($, on) => {
     inRepo(on, '/repo/one', {
       global: [
         { id: 'g1', text: '지금 어디까지 진행했는지 알려줘', title: '진행상황' },
@@ -126,7 +126,8 @@ describe('quick-replies', () => {
     })
 
     let ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
-    expect((await ui.find({ key: 'compact' }))?.props?.hotkey).toBe('0')
+    expect((await ui.find({ key: 'compact' }))?.props?.label).toBe('$0: 접기')
+    expect((await ui.find({ key: 'compact' }))?.props?.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'send:g1' }))?.props?.label).toBe('지금 어디까지 진행했는지 알려줘')
 
     await ui.press({ key: 'compact' })
@@ -149,7 +150,7 @@ describe('quick-replies', () => {
     await ui.unmount()
 
     ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
-    expect((await ui.find({ key: 'compact' }))?.props?.label).toBe('접기')
+    expect((await ui.find({ key: 'compact' }))?.props?.label).toBe('$0: 접기')
     await ui.unmount()
   })
 
@@ -344,5 +345,32 @@ describe('quick-replies', () => {
     expect((await type('$', '4')).text).toBe('맞아 그렇게 진행해')
     expect((await type('$', '1')).text).toBe('$1')
     expect((await type('$', '5')).text).toBe('$5')
+  })
+
+  test('입력창에 `$0`을 치면 프리셋을 접고, `$e`를 치면 편집 화면을 연다. 친 글자는 남기지 않는다', async ($, on) => {
+    inRepo(on, '/repo/one')
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    const type = (text: string, key: string) =>
+      ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string; cursor: number }> }).edit({
+        origin: { kind: 'composer' },
+        key: { key },
+        text,
+        cursor: text.length,
+        start: text.length,
+        end: text.length,
+        inputText: key,
+      })
+    expect(await type('글 $', '0')).toEqual({ text: '글 ', cursor: 2 })
+    let ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect((await ui.find({ key: 'compact' }))?.props?.label).toBe('$0: 펼치기')
+    await ui.unmount()
+
+    expect(await type('$', 'e')).toEqual({ text: '', cursor: 0 })
+    ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect(await ui.find({ key: 'done' })).toBeDefined()
+    await ui.unmount()
+
+    // 낱말 중간의 $e는 그대로 둔다.
+    expect((await type('a$', 'e')).text).toBe('a$e')
   })
 })
