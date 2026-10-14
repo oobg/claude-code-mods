@@ -28,6 +28,15 @@ export function lastPermissionMode(transcript: string): string | null {
   return found.at(-1)?.[1] ?? null
 }
 
+// Claude Code 실행 줄에서 처음 권한 모드를 읽는다. 플래그가 없으면 null(설정의 기본값을 따른다).
+export function launchPermissionMode(args: string): string | null {
+  if (/(^|\s)--dangerously-skip-permissions(\s|$)/.test(args)) {
+    return 'bypassPermissions'
+  }
+  const found = /(^|\s)--permission-mode[ =](\S+)/.exec(args)?.[2]
+  return found ?? null
+}
+
 export function pullFor(permissionMode: string | null): number {
   return permissionMode === null ? 0 : (PILL_WIDTH[permissionMode] ?? 0)
 }

@@ -272,11 +272,13 @@ function gauge(c: Palette, label: string, percent: number, cells: number): Segme
 
 // gauge 모양: 윗줄은 게이지만, 각 게이지 옆에 흐린 글자로 딸린 정보(토큰, 다시 차기까지 남은 시간)를 붙인다.
 // 아랫줄은 무엇으로 어디서 일하는지. 맨 앞 세로줄이 두 줄을 묶는다.
-//   ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% 409K/1.0M   5h ▰▱▱▱▱  6% 2h13m   7d ▰▱▱▱▱ 26% 3d4h   fable ▰▱▱▱▱ 12% 3d4h
+//   ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% 409K/1.0M   5h ▰▱▱▱▱  6% (2h13m)   7d ▰▱▱▱▱ 26% (3d4h)   fable ▰▱▱▱▱ 12% (3d4h)
 //   ▌ 🧠 Opus xhigh · ⏱ 52분 · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
 function gaugeLayout(s: Snapshot, c: Palette): Layout {
   const gap: Segment = { text: '   ' }
   const note = (text: string | null): Segment[] => (text === null ? [] : [{ text: ` ${text}`, dim: true }])
+  // 다시 차기까지 남은 시간은 괄호로 감싸 비율 숫자와 구분한다.
+  const left = (text: string | null) => note(text === null ? null : `(${text})`)
   const gauges: Segment[][] = []
   const percent =
     s.context.percent ?? (s.context.tokens === undefined ? undefined : (s.context.tokens / s.context.window) * 100)
@@ -289,14 +291,14 @@ function gaugeLayout(s: Snapshot, c: Palette): Layout {
   const five = s.rateLimits.find(r => r.kind === 'five_hour')
   const week = s.rateLimits.find(r => r.kind === 'seven_day')
   if (five !== undefined) {
-    gauges.push([...gauge(c, '5h', five.percentUsed, 5), ...note(resetLabel(five.resetsAt, now))])
+    gauges.push([...gauge(c, '5h', five.percentUsed, 5), ...left(resetLabel(five.resetsAt, now))])
   }
   if (week !== undefined) {
-    gauges.push([...gauge(c, '7d', week.percentUsed, 5), ...note(resetLabel(week.resetsAt, now))])
+    gauges.push([...gauge(c, '7d', week.percentUsed, 5), ...left(resetLabel(week.resetsAt, now))])
   }
   if (s.fableWeek !== null) {
     // Fable 주간 한도는 전체 주간 한도와 같은 때 다시 찬다(/usage에서 확인).
-    gauges.push([...gauge(c, 'fable', s.fableWeek, 5), ...note(resetLabel(week?.resetsAt, now))])
+    gauges.push([...gauge(c, 'fable', s.fableWeek, 5), ...left(resetLabel(week?.resetsAt, now))])
   }
 
   const dot: Segment = { text: ' · ', dim: true }

@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
+import { launchPermissionMode } from '../hooks/footer'
 import { THEMES, buildLayout, buildLines, levelColor, resetLabel, compactTokens, duration, parseFableWeek } from '../hooks/lines'
 import type { Snapshot } from '../hooks/lines'
 
@@ -50,6 +51,9 @@ function session(on: On, mode: string) {
     if (argv[0] === 'tail') {
       const stdout = `{"permissionMode":"default"}\n{"permissionMode":"${mode}"}\n`
       return { value: { exitCode: 0, stdout, stderr: '' } as never }
+    }
+    if (argv[0] === 'sh') {
+      return { value: { exitCode: 0, stdout: 'claude --dangerously-skip-permissions\n', stderr: '' } as never }
     }
     if (argv[0] === 'claude') {
       const stdout = 'Current week (all models): 28% used\nCurrent week (Fable): 4% used · resets Oct 17\n'
@@ -313,5 +317,12 @@ describe('dashboard', () => {
     }
     expect((await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft).toBe(-27)
     await ui.unmount()
+  })
+
+  test('실행 인자에서 처음 권한 모드를 읽는다', () => {
+    expect(launchPermissionMode('claude --dangerously-skip-permissions')).toBe('bypassPermissions')
+    expect(launchPermissionMode('/Users/me/.local/bin/claude --permission-mode plan')).toBe('plan')
+    expect(launchPermissionMode('claude --permission-mode=acceptEdits -c')).toBe('acceptEdits')
+    expect(launchPermissionMode('claude')).toBeNull()
   })
 })

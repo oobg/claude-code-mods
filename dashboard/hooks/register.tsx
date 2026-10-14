@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Segment, Snapshot, Style, Theme } from '../types'
-import { lastPermissionMode, pullFor, withSection } from './footer'
+import { launchPermissionMode, lastPermissionMode, pullFor, withSection } from './footer'
 import { GAPS, STYLES, THEME_NAMES, buildLayout, parseFableWeek } from './lines'
 
 // 바닥 틀 안의 순서. 다른 구역이 생기면 이 숫자로 위아래를 정한다.
@@ -181,6 +181,21 @@ async function notePermissionMode($: EngineInterface, e: { permission_mode?: str
   }
 }
 
+// 모드가 띄운 프로세스의 부모를 따라 올라가 Claude Code의 실행 줄을 찾는다. 못 찾으면 빈 문자열.
+const LAUNCH_SCRIPT =
+  'p=$PPID; for i in 1 2 3 4 5 6; do a=$(ps -o args= -p "$p" 2>/dev/null); ' +
+  'case "$a" in claude|claude\\ *|*/claude|*/claude\\ *) echo "$a"; exit 0;; esac; ' +
+  'p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " "); [ -z "$p" ] && break; done'
+
+async function readLaunchMode($: EngineInterface): Promise<string | null> {
+  try {
+    const { exitCode, stdout } = await $.process.run(['sh', '-c', LAUNCH_SCRIPT], { timeoutMs: 5_000 })
+    return exitCode === 0 ? launchPermissionMode(stdout.trim()) : null
+  } catch {
+    return null
+  }
+}
+
 // 세션마다 한 번: 저장된 선택을 읽고, 명령을 등록하고, 타이머를 건다.
 // /reload-plugins는 세션 시작을 다시 알리지 않고 타이머도 지우므로, 다음 메시지나 턴 끝에서 다시 부른다.
 let started = false
@@ -190,6 +205,13 @@ async function start($: EngineInterface): Promise<void> {
     return
   }
   started = true
+  // 기록에도 훅 이벤트에도 권한 모드가 아직 없으면(새 세션, 다시 불러온 직후) 실행 인자로 처음 값을 정한다.
+  if ((await read($, permissionMode)) === null) {
+    const launched = (await readLaunchMode($)) ?? 'default'
+    if ((await read($, permissionMode)) === null) {
+      await update($, permissionMode, () => launched)
+    }
+  }
   const [chosen, palette, fable] = [await currentStyle($), await currentTheme($), await currentFable($)]
   await update($, style, () => chosen)
   await update($, theme, () => palette)
