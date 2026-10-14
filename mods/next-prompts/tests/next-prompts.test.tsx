@@ -37,6 +37,7 @@ describe('next-prompts', () => {
 
   test('제안이 있으면 띠에 $번호 버튼으로 그리고, 번호를 고르면 입력창에 초안으로 넣고 띠를 닫는다', async ($, on) => {
     mock.store(on)
+    const clock = mock.clock(on)
     const filled: string[] = []
     on('prompt.fill', (_$, e) => {
       filled.push(e.text)
@@ -54,12 +55,10 @@ describe('next-prompts', () => {
 
     await $.prompt.submit({ text: '버튼 꾸며줘' } as never)
     await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
-    // 제안은 턴 마무리를 붙잡지 않고 뒤에서 만든다. 띠에 나타날 때까지 몇 번 다시 그려 본다.
-    let ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
-    for (let i = 0; i < 50 && (await ui.find({ key: 'pick:1' })) === undefined; i++) {
-      await ui.unmount()
-      ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
-    }
+    // 제안은 턴 마무리를 붙잡지 않고 뒤에서 만들고, 한 줄씩 흘려 쓴다. 시계를 넉넉히 돌려 다 나오게 한다.
+    await clock.settle()
+    await clock.advance(2000)
+    const ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
     // 번호는 `$1:`로 보이고, 빈 입력창의 숫자 하나로 눌리지 않는다.
     expect((await ui.find({ key: 'pick:1' }))?.props?.label).toBe('$1:')
     expect((await ui.find({ key: 'pick:1' }))?.props?.hotkey).toBeUndefined()
@@ -73,6 +72,7 @@ describe('next-prompts', () => {
 
   test('quick-replies가 프리셋을 접어 두어도 제안은 전체 문구로 보인다', async ($, on) => {
     mock.store(on)
+    const clock = mock.clock(on)
     on('state.get', { plugin: 'quick-replies', key: 'compact' }, () => ({ value: { value: true, version: 1 } }) as never)
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Text } = $.ui.resolve(e)
@@ -86,11 +86,10 @@ describe('next-prompts', () => {
 
     await $.prompt.submit({ text: '버튼 꾸며줘' } as never)
     await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
-    let ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
-    for (let i = 0; i < 50 && (await ui.find({ key: 'go:1' })) === undefined; i++) {
-      await ui.unmount()
-      ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
-    }
+    // 제안은 턴 마무리를 붙잡지 않고 뒤에서 만들고, 한 줄씩 흘려 쓴다. 시계를 넉넉히 돌려 다 나오게 한다.
+    await clock.settle()
+    await clock.advance(2000)
+    const ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
     expect((await ui.find({ key: 'go:1' }))?.props?.label).toBe('테스트 돌려줘')
     expect((await ui.find({ key: 'go:2' }))?.props?.label).toBe('커밋해줘')
     expect((await ui.find({ key: 'dismiss' }))?.props?.hotkey).toBeUndefined()
@@ -99,6 +98,7 @@ describe('next-prompts', () => {
 
   test('제안 문구를 클릭하면 바로 사용자 말로 보내고 띠를 닫는다', async ($, on) => {
     mock.store(on)
+    const clock = mock.clock(on)
     const sent: string[] = []
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Text } = $.ui.resolve(e)
@@ -115,15 +115,136 @@ describe('next-prompts', () => {
 
     await $.prompt.submit({ text: '버튼 꾸며줘' } as never)
     await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
-    let ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
-    for (let i = 0; i < 50 && (await ui.find({ key: 'go:1' })) === undefined; i++) {
-      await ui.unmount()
-      ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
-    }
+    // 제안은 턴 마무리를 붙잡지 않고 뒤에서 만들고, 한 줄씩 흘려 쓴다. 시계를 넉넉히 돌려 다 나오게 한다.
+    await clock.settle()
+    await clock.advance(2000)
+    const ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
     sent.length = 0
     await ui.press({ key: 'go:2' })
     expect(sent).toEqual(['커밋해줘'])
     expect(await ui.find({ key: 'go:1' })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('제안은 자리를 미리 잡은 뒤 한 줄씩 흐리게 흘려 쓰고, 다 나오면 보통 색이 된다. 도중에도 번호와 $번호는 전체 문구를 넣는다', async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on)
+    const filled: string[] = []
+    on('prompt.fill', (_$, e) => {
+      filled.push(e.text)
+      return { isFilled: true } as never
+    })
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-band</Text>
+    })
+    on('model.complete', () => ({
+      value: { isAnswered: true, text: '바뀐 내용을 README 문서에 반영해줘\n커밋해줘', usage: {} } as never,
+    }))
+    on('turn.complete', () => ({ text: '' }))
+    on('prompt.submit', () => ({ text: '' }) as never)
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    const mount = () => $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
+    const first = '바뀐 내용을 README 문서에 반영해줘'
+
+    await $.prompt.submit({ text: '문서 고쳐줘' } as never)
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
+    await clock.settle()
+
+    // 첫 프레임: 제목 줄과 첫 제안의 앞 몇 글자만 흐리게 보이고, 둘째 줄은 빈 줄로 자리만 잡혀 있다.
+    let ui = await mount()
+    expect(await ui.find({ key: 'dismiss' })).toBeDefined()
+    const go1 = await ui.find({ key: 'go:1' })
+    expect(go1?.props?.label).toBe(first)
+    expect(go1!.text.length).toBeGreaterThan(0)
+    expect(go1!.text.length).toBeLessThan(first.length)
+    expect(first.startsWith(go1!.text)).toBe(true)
+    expect((await ui.find({ type: 'Text', text: go1!.text }))?.props?.dimColor).toBe(true)
+    expect(await ui.find({ key: 'go:2' })).toBeUndefined()
+    expect(await ui.find({ key: 'line:2' })).toBeDefined()
+    await ui.unmount()
+
+    // 도중에도 `$1`은 화면의 잘린 글자가 아니라 전체 문구로 바뀐다.
+    const typed = await ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string }> }).edit({
+      origin: { kind: 'composer' },
+      key: { key: '1' },
+      text: '$',
+      cursor: 1,
+      start: 1,
+      end: 1,
+      inputText: '1',
+    })
+    expect(typed.text).toBe(first)
+
+    // 120ms 뒤에는 둘째 줄이 나오기 시작한다.
+    await clock.advance(120)
+    ui = await mount()
+    expect(await ui.find({ key: 'go:2' })).toBeDefined()
+    await ui.unmount()
+
+    // 0.3초 안팎이면 다 나오고 보통 색으로 바뀐다.
+    await clock.advance(400)
+    ui = await mount()
+    expect((await ui.find({ key: 'go:1' }))?.text).toBe(first)
+    expect((await ui.find({ type: 'Text', text: first }))?.props?.dimColor).toBeFalsy()
+    expect((await ui.find({ key: 'go:2' }))?.text).toBe('커밋해줘')
+    await ui.unmount()
+  })
+
+  test('흘려 쓰는 도중 번호를 누르면 전체 문구를 넣고, 새 프롬프트를 보내면 애니메이션을 멈추고 제안을 비운다', async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on)
+    const filled: string[] = []
+    on('prompt.fill', (_$, e) => {
+      filled.push(e.text)
+      return { isFilled: true } as never
+    })
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-band</Text>
+    })
+    on('model.complete', () => ({
+      value: { isAnswered: true, text: '바뀐 내용을 README 문서에 반영해줘\n커밋해줘', usage: {} } as never,
+    }))
+    on('turn.complete', () => ({ text: '' }))
+    on('prompt.submit', () => ({ text: '' }) as never)
+    // 진행 정도를 쓴 기록. 멈춘 애니메이션이 더 쓰지 않는지 본다.
+    const reveals: unknown[] = []
+    on('state.set', { plugin: 'next-prompts', key: 'reveal' }, (_$, e, next) => {
+      reveals.push((e as { value: unknown }).value)
+      return next(e)
+    })
+    const mount = () => $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
+
+    await $.prompt.submit({ text: '문서 고쳐줘' } as never)
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
+    await clock.settle()
+    let ui = await mount()
+    await ui.press({ key: 'pick:1' })
+    expect(filled).toEqual(['바뀐 내용을 README 문서에 반영해줘'])
+    await ui.unmount()
+
+    // 다시 만들어 흘려 쓰는 도중에 새 프롬프트를 보낸다.
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't2' } as never)
+    await clock.settle()
+    ui = await mount()
+    expect(await ui.find({ key: 'go:1' })).toBeDefined()
+    await ui.unmount()
+    await $.prompt.submit({ text: '다른 일 해줘' } as never)
+    expect(reveals.at(-1)).toEqual([])
+    const written = reveals.length
+    ui = await mount()
+    expect(await ui.find({ key: 'go:1' })).toBeUndefined()
+    await ui.unmount()
+    // 시계를 돌려도 멈춘 애니메이션이 진행 정도를 다시 쓰지 않는다.
+    await clock.advance(40)
+    expect(reveals.length).toBe(written)
+    await clock.advance(2000)
+    ui = await mount()
+    expect(await ui.find({ key: 'go:1' })).toBeUndefined()
+    expect(await ui.find({ key: 'go:2' })).toBeUndefined()
+    expect(await ui.find({ key: 'dismiss' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: 'engine-band' })).toBeDefined()
     await ui.unmount()
   })
 

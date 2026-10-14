@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Suggestions } from '../types'
+import type { Reveal, Suggestions } from '../types'
 import { MAX_NUMBER, numberLabel, typedNumber, withBandSection } from './band'
 import { MIN_ANSWER_CHARS, SYSTEM, buildPrompt, parseSuggestions } from './suggest'
 
@@ -11,7 +11,49 @@ const ORDER = 10
 const ACCENT = 'suggestion'
 
 const suggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as const, [] as Suggestions)
+const reveal = atom({ plugin: 'next-prompts', key: 'reveal' } as const, [] as Reveal)
 const lastPrompt = atom({ plugin: 'next-prompts', key: 'lastPrompt' } as const, '')
+
+// 제안이 나타나는 모양. 줄은 LINE_GAP_MS 간격으로 하나씩 나오고, 한 줄은 LINE_MS 안팎에 앞에서부터 흘려 쓴다.
+// 엔진은 띠를 초당 30번까지 다시 그리므로 상태는 FRAME_MS(33ms 이상)마다 한 번만 바꾼다.
+const FRAME_MS = 40
+const LINE_GAP_MS = 120
+const LINE_MS = 320
+const LINE_GAP_FRAMES = Math.round(LINE_GAP_MS / FRAME_MS)
+const LINE_FRAMES = Math.round(LINE_MS / FRAME_MS)
+
+const chars = (text: string) => Array.from(text)
+
+// f번째 프레임(0부터)에 각 줄이 보여 줄 글자 수.
+function revealAt(list: Suggestions, f: number): number[] {
+  return list.map((text, i) => {
+    const length = chars(text).length
+    const elapsed = f - i * LINE_GAP_FRAMES + 1
+    if (elapsed <= 0) {
+      return 0
+    }
+    return Math.min(length, elapsed * Math.ceil(length / LINE_FRAMES))
+  })
+}
+
+// 전체 제안을 한 번에 넣고, 보여 줄 진행 정도만 프레임마다 늘린다.
+// 새 프롬프트나 닫기로 generation이 바뀌면 그 자리에서 멈춘다(제안은 그쪽에서 비운다).
+async function animate($: EngineInterface, picked: Suggestions, mine: number): Promise<void> {
+  await update($, reveal, () => revealAt(picked, 0))
+  await update($, suggestions, () => picked)
+  for (let f = 1; ; f++) {
+    await $.clock.sleep(FRAME_MS)
+    if (mine !== generation) {
+      return
+    }
+    const next = revealAt(picked, f)
+    if (next.every((n, i) => n >= chars(picked[i]!).length)) {
+      await update($, reveal, () => [])
+      return
+    }
+    await update($, reveal, () => next)
+  }
+}
 
 // 제안을 만드는 동안 사용자가 새 프롬프트를 보냈으면, 늦게 온 제안은 버린다.
 let generation = 0
@@ -30,17 +72,27 @@ async function suggest($: EngineInterface, answer: string, mine: number): Promis
       return
     }
     const picked = parseSuggestions(reply.text)
-    await update($, suggestions, () => picked)
+    if (picked.length === 0) {
+      return
+    }
+    await animate($, picked, mine)
   } catch {
     // 제안은 덤이다. 실패하면 띠를 띄우지 않는다.
   }
 }
 
 export const register: Register = on => {
+  // 다시 불러오면 돌던 애니메이션은 사라지니, 남은 진행 정도를 지워 제안을 다 보이게 한다.
+  on('session.start', async ($, e, next) => {
+    await update($, reveal, () => [])
+    return next(e)
+  })
+
   // 프롬프트를 보내면(슬래시 명령 포함) 지난 제안을 지우고, 다음 제안의 재료로 그 문장을 남긴다.
   on('prompt.submit', async ($, e, next) => {
     generation += 1
     await update($, suggestions, () => [])
+    await update($, reveal, () => [])
     await update($, lastPrompt, () => e.text)
     return next(e)
   })
@@ -79,53 +131,84 @@ export const register: Register = on => {
       return withBandSection(below, 'next-prompts', ORDER, null)
     }
 
-    const { Box, Button, Text } = $.ui.resolve(e)
-    const clear = () => update($, suggestions, () => [])
+    const shown = await read($, reveal)
+    // i번째 줄에서 지금 보이는 글자 수. 진행 정도가 없으면 다 보인다.
+    const visible = (text: string, i: number) =>
+      shown.length !== list.length ? chars(text).length : Math.min(chars(text).length, shown[i] ?? 0)
 
-    // 제안 하나는 버튼 두 개다. 번호(`$1:`)는 클릭하면 입력창에 초안으로 넣기만 하고, 문구는 클릭하면 바로 보낸다.
+    const { Box, Button, Text } = $.ui.resolve(e)
+    // 닫으면 돌고 있는 애니메이션도 멈춘다.
+    const clear = async () => {
+      generation += 1
+      await update($, suggestions, () => [])
+      await update($, reveal, () => [])
+    }
+
+    // 제안 하나는 버튼 두 개다. 화면에는 흘려 쓰는 중인 글자만 보여도, 버튼이 넣고 보내는 것은 늘 전체 문구다.
+    // 번호(`$1:`)는 클릭하면 입력창에 초안으로 넣기만 하고, 문구는 클릭하면 바로 보낸다.
     // 입력창에 `$1`을 치면 번호를 클릭하지 않아도 그 자리에 들어간다(prompt.edit).
-    // 제안은 접지 않고 늘 전체 문구로 보인다(quick-replies의 0은 프리셋만 접는다). 닫기는 클릭으로만 한다.
-    const pick = (text: string, i: number) => (
-      <Box key={`item:${i + 1}`} flexDirection="row" columnGap={1}>
-        {i < MAX_NUMBER && (
+    // 다 나온 제안은 접지 않고 늘 전체 문구로 보인다(quick-replies의 0은 프리셋만 접는다). 닫기는 클릭으로만 한다.
+    const pick = (text: string, i: number, count: number) => {
+      const isTyping = count < chars(text).length
+      return (
+        <Box key={`item:${i + 1}`} flexDirection="row" columnGap={1}>
+          {i < MAX_NUMBER && (
+            <Button
+              key={`pick:${i + 1}`}
+              label={numberLabel(i + 1)}
+              plain
+              onPress={async () => {
+                await $.prompt.fill({ text })
+                await clear()
+              }}
+            >
+              <Text color={ACCENT}>{numberLabel(i + 1)}</Text>
+            </Button>
+          )}
           <Button
-            key={`pick:${i + 1}`}
-            label={numberLabel(i + 1)}
+            key={`go:${i + 1}`}
+            label={text}
             plain
             onPress={async () => {
-              await $.prompt.fill({ text })
+              // 이 모드가 보낸 프롬프트에는 자기 prompt.submit 훅이 돌지 않으니, 그 일을 여기서 한다(clear가 generation을 올린다).
               await clear()
+              await update($, lastPrompt, () => text)
+              await $.prompt.submit({ text, asUser: true })
             }}
           >
-            <Text color={ACCENT}>{numberLabel(i + 1)}</Text>
+            {/* 다 나올 때까지는 흐리게, 다 나오면 보통 색으로 그려 페이드처럼 보이게 한다. */}
+            <Text dimColor={isTyping}>{isTyping ? chars(text).slice(0, count).join('') : text}</Text>
           </Button>
-        )}
-        <Button
-          key={`go:${i + 1}`}
-          label={text}
-          plain
-          onPress={async () => {
-            // 이 모드가 보낸 프롬프트에는 자기 prompt.submit 훅이 돌지 않으니, 그 일을 여기서 한다.
-            generation += 1
-            await clear()
-            await update($, lastPrompt, () => text)
-            await $.prompt.submit({ text, asUser: true })
-          }}
-        />
+        </Box>
+      )
+    }
+    // 제목 줄 다음에 제안을 한 줄에 하나씩 둔다. 애니메이션 동안에도 줄 수는 처음부터 다 잡아 두고,
+    // 아직 나오지 않은 줄(제목 줄은 첫 제안이 나오기 전까지)은 빈 줄로 그려 띠 높이가 흔들리지 않게 한다.
+    const blank = (key: string) => (
+      <Box key={key}>
+        <Text> </Text>
       </Box>
     )
-    // 제목 줄 다음에 제안을 한 줄에 하나씩 둔다.
     const row = (
       <Box flexDirection="column">
-        <Box flexDirection="row" columnGap={2}>
-          <Text dimColor>다음 제안</Text>
-          <Button key="dismiss" label="닫기" plain dimColor role="dismiss" onPress={clear} />
-        </Box>
-        {list.map((text, i) => (
-          <Box key={`line:${i + 1}`} paddingLeft={2}>
-            {pick(text, i)}
+        {visible(list[0]!, 0) > 0 ? (
+          <Box key="title" flexDirection="row" columnGap={2}>
+            <Text dimColor>다음 제안</Text>
+            <Button key="dismiss" label="닫기" plain dimColor role="dismiss" onPress={clear} />
           </Box>
-        ))}
+        ) : (
+          blank('title')
+        )}
+        {list.map((text, i) => {
+          const count = visible(text, i)
+          return count > 0 ? (
+            <Box key={`line:${i + 1}`} paddingLeft={2}>
+              {pick(text, i, count)}
+            </Box>
+          ) : (
+            blank(`line:${i + 1}`)
+          )
+        })}
       </Box>
     )
     return withBandSection(below, 'next-prompts', ORDER, row)
