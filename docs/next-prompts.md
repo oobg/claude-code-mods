@@ -5,8 +5,8 @@
 > Claude가 답을 마치면 다음에 보낼 만한 요청을 입력창 위에 제안한다.
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/suggest-dark.gif">
-<img alt="턴이 끝나면 다음에 보낼 만한 요청이 하나씩 나타난다" src="../.github/assets/showcase/suggest-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/suggest-dark.gif">
+<img alt="턴이 끝나면 다음에 보낼 만한 요청이 하나씩 나타난다" src="./images/showcase/suggest-light.gif" width="560">
 </picture></p>
 
 | 항목 | 값 |

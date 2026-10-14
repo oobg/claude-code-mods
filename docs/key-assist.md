@@ -5,8 +5,8 @@
 > Finder에서 복사한 파일을 붙여넣으면 파일 이름을 `@경로` 멘션으로 바꾸고, Cmd+Z로 입력한 내용을 되돌리게 한다. macOS 전용이다.
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/paste-dark.gif">
-<img alt="붙여넣은 파일 이름이 @경로로 바뀐다" src="../.github/assets/showcase/paste-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/paste-dark.gif">
+<img alt="붙여넣은 파일 이름이 @경로로 바뀐다" src="./images/showcase/paste-light.gif" width="560">
 </picture></p>
 
 | 항목 | 값 |
@@ -100,8 +100,8 @@ Finder에서 복사한 파일을 입력창에 붙여넣으면 붙여넣은 덩�
 ### Cmd+Z로 되돌리기
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/undo-dark.gif">
-<img alt="Cmd+Z로 방금 바뀐 내용을 되돌린다" src="../.github/assets/showcase/undo-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/undo-dark.gif">
+<img alt="Cmd+Z로 방금 바뀐 내용을 되돌린다" src="./images/showcase/undo-light.gif" width="560">
 </picture></p>
 
 설치한 뒤 처음 시작한 세션에서 `~/.claude/keybindings.json`을 연다. 환경 변수 `CLAUDE_CONFIG_DIR`이 있으면 그 폴더의 `keybindings.json`을 연다.

@@ -5,8 +5,8 @@
 > 입력창 아래 권한 모드 줄 밑에 모델, 컨텍스트, 사용 한도, 브랜치를 두 줄로 그린다.
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/gauge-dark.gif">
-<img alt="컨텍스트 게이지가 찰수록 노랑, 주황, 빨강으로 바뀐다" src="../.github/assets/showcase/gauge-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/gauge-dark.gif">
+<img alt="컨텍스트 게이지가 찰수록 노랑, 주황, 빨강으로 바뀐다" src="./images/showcase/gauge-light.gif" width="560">
 </picture></p>
 
 | 항목 | 값 |
@@ -66,8 +66,8 @@ Claude Code의 상태줄(`statusLine`) 자리 대신 입력창 아래 안내 줄
 ### 모양 바꾸기
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/styles-dark.gif">
-<img alt="/dashboard-style로 gauge, calm, emoji, compact를 차례로 바꾼다" src="../.github/assets/showcase/styles-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/styles-dark.gif">
+<img alt="/dashboard-style로 gauge, calm, emoji, compact를 차례로 바꾼다" src="./images/showcase/styles-light.gif" width="560">
 </picture></p>
 
 `/dashboard-style`에 모양 이름을 붙이면 그 모양으로 바로 바뀐다. 이름 없이 실행하면 `gauge`, `calm`, `emoji`, `compact` 순서로 다음 모양으로 넘어가고, `compact` 다음은 다시 `gauge`다. 없는 이름을 넣으면 고를 수 있는 이름을 알려 주고 모양은 그대로 둔다.

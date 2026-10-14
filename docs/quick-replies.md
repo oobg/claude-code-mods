@@ -5,8 +5,8 @@
 > 반복해서 입력하던 "지금 진행상황"을 `$4`처럼 번호 두 글자로 불러온다.
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/substitute-dark.gif">
-<img alt="입력창에 $2를 치면 그 자리에 2번 문구가 들어간다" src="../.github/assets/showcase/substitute-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/substitute-dark.gif">
+<img alt="입력창에 $2를 치면 그 자리에 2번 문구가 들어간다" src="./images/showcase/substitute-light.gif" width="560">
 </picture></p>
 
 | 항목 | 값 |
@@ -103,8 +103,8 @@
 `$0: 접기`를 클릭하거나 입력창에 `$0`을 치면 전역과 로컬 프리셋을 각각 한 줄로 접어 제목만 보여 준다. 다시 하면 펼친다. 접힘 상태는 저장되어 다음 세션에도 유지된다. 다음 제안은 접히지 않고 늘 전체 문구로 보인다.
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/fold-dark.gif">
-<img alt="$0을 치면 프리셋을 한 줄로 접고, 다시 치면 펼친다" src="../.github/assets/showcase/fold-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/fold-dark.gif">
+<img alt="$0을 치면 프리셋을 한 줄로 접고, 다시 치면 펼친다" src="./images/showcase/fold-light.gif" width="560">
 </picture></p>
 
 아래는 다음 제안이 3개 떠 있을 때 접은 모습이다. 그래서 프리셋 번호가 `$4`부터 시작한다.
@@ -125,8 +125,8 @@
 ### 편집 화면
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="../.github/assets/showcase/editor-dark.gif">
-<img alt="$e로 편집 화면을 열고, 입력창에 쓴 문구를 Enter로 저장한다" src="../.github/assets/showcase/editor-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/editor-dark.gif">
+<img alt="$e로 편집 화면을 열고, 입력창에 쓴 문구를 Enter로 저장한다" src="./images/showcase/editor-light.gif" width="560">
 </picture></p>
 
 입력창에 `$e`를 치거나 `$e: 편집`을 클릭하면 입력창 위 영역에 편집 화면이 열린다. 편집 중에도 입력 포커스는 입력창에 그대로 있고, 입력창에 누른 키를 모드가 받아 편집 명령으로 처리한다. 편집 화면이 열려 있는 동안 다음 제안은 숨긴다.

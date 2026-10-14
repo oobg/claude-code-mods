@@ -3,10 +3,10 @@ title: claude-code-mods
 description: Claude Code 입력창 주변에 기능을 추가하는 모드 모음
 lang: ko
 theme: jekyll-theme-primer
-# README와 문서가 쓰는 로고와 장면 이미지가 .github/assets/에 있어서 사이트에 포함한다.
-include:
-  - .github
 exclude:
   - mods
   - demo
   - .claude-plugin
+# 표(<td>) 안에 쓴 마크다운 링크도 읽는다. 그래야 .md 링크가 사이트에서 .html로 바뀐다.
+kramdown:
+  parse_block_html: true
