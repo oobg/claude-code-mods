@@ -23,12 +23,16 @@ claude plugin validate ./next-prompts
 claude plugin test ./next-prompts
 ```
 
-README 맨 위의 동작 장면(`docs/demo.gif`)은 `demo/`의 Remotion 프로젝트로 그린다. 장면을 고친 뒤 아래처럼 다시 렌더링한다.
+## 장면 렌더링
+
+README의 배너와 기능별 장면은 `demo/`의 Remotion 프로젝트로 그린다. 장면은 `demo/src/scenes/`에 있고, 다크와 라이트 두 벌로 렌더링해 GitHub 테마에 맞춰 보인다. 결과는 `.github/assets/`에 들어간다.
 
 ```
 cd demo
 npm install
-npm run render
+npm run render            # 배너와 장면 전부
+npm run render -- editor  # 장면 하나만
+npm run studio            # 브라우저에서 미리 보기
 ```
 
 ## 구조
@@ -60,9 +64,9 @@ npm run render
 ├── key-assist/
 │   └── hooks/
 │       └── register.ts       # 붙여넣은 파일 이름을 경로로 바꾸고, Cmd+Z 키 설정을 한 번 더함
-├── demo/                     # README 동작 장면을 그리는 Remotion 프로젝트
+├── .github/assets/           # README 배너와 기능별 장면(다크, 라이트)
+├── demo/                     # 배너와 장면을 그리는 Remotion 프로젝트
 └── docs/
-    ├── demo.gif              # 렌더링한 동작 장면
     ├── next-prompts.md       # 모드별 문서
     ├── quick-replies.md
     ├── dashboard.md
