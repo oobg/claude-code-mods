@@ -184,8 +184,9 @@ describe('dashboard', () => {
       expect(await exact('📁 repo')).toBeDefined()
       expect(await exact(' ⎇ main')).toBeDefined()
       expect((await exact('🔑 me@example.com'))?.props?.color).toBe(THEMES.everforest.muted)
-      expect((await exact(' 325K/1.0M'))?.props?.dimColor).toBe(true)
-      expect((await exact('ctx '))?.props?.dimColor).toBe(true)
+      // 쓴 토큰은 괄호로 감싸 흐리게, 게이지 이름표는 본문 글자색으로 그린다.
+      expect((await exact(' (325K/1.0M)'))?.props?.dimColor).toBe(true)
+      expect((await exact('ctx '))?.props?.color).toBe(THEMES.everforest.text)
       expect((await exact('📁 repo'))?.props?.color).toBe(THEMES.everforest.primary)
       expect(await ui.find({ type: 'Text', text: /\$12\.58/ })).toBeUndefined()
       // 맨 앞 세로줄은 컨텍스트가 50% 아래면 모델 색이다.
@@ -215,8 +216,8 @@ describe('dashboard', () => {
     expect((await run('dashboard-style', 'compact')).text).toContain('한 줄')
     expect((await run('dashboard-theme')).text).toContain('nord')
     expect((await run('dashboard-theme', 'kanagawa')).text).toContain('kanagawa')
-    expect((await run('dashboard-theme', 'neon')).text).toContain('모르는 색')
-    expect((await run('dashboard-style', 'fancy')).text).toContain('모르는 모양')
+    expect((await run('dashboard-theme', 'neon')).text).toContain('없는 색')
+    expect((await run('dashboard-style', 'fancy')).text).toContain('없는 모양')
 
     await run('usage')
     ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
@@ -269,8 +270,8 @@ describe('dashboard', () => {
   test('한도가 다시 차기까지 남은 시간을 짧게 쓴다', () => {
     const now = Date.parse('2026-10-14T06:00:00Z')
     expect(resetLabel('2026-10-14T06:38:00Z', now)).toBe('38m')
-    expect(resetLabel('2026-10-14T08:13:00Z', now)).toBe('2h13m')
-    expect(resetLabel('2026-10-17T10:00:00Z', now)).toBe('3d4h')
+    expect(resetLabel('2026-10-14T08:13:00Z', now)).toBe('2h/13m')
+    expect(resetLabel('2026-10-17T10:00:00Z', now)).toBe('3d/4h')
     expect(resetLabel(undefined, now)).toBeNull()
   })
 

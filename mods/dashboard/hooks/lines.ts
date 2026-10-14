@@ -284,7 +284,7 @@ export function buildLines(s: Snapshot, style: Style = 'calm', theme: Theme = 'e
   ]
 }
 
-// 한도가 다시 차기까지 남은 시간. 게이지 이름표(5h, 7d)와 단위를 맞춰 "2h13m", "3d4h"처럼 짧게 쓴다.
+// 한도가 다시 차기까지 남은 시간. 게이지 이름표(5h, 7d)와 단위를 맞추고 단위 사이를 /로 나눠 "2h/13m", "3d/4h"처럼 쓴다.
 export function resetLabel(resetsAt: string | undefined, nowMs: number): string | null {
   const at = resetsAt === undefined ? NaN : Date.parse(resetsAt)
   if (Number.isNaN(at)) {
@@ -296,9 +296,9 @@ export function resetLabel(resetsAt: string | undefined, nowMs: number): string 
   }
   const hours = Math.floor(minutes / 60)
   if (hours < 24) {
-    return `${hours}h${minutes % 60}m`
+    return `${hours}h/${minutes % 60}m`
   }
-  return `${Math.floor(hours / 24)}d${hours % 24}h`
+  return `${Math.floor(hours / 24)}d/${hours % 24}h`
 }
 
 // 게이지 한 칸: "5h ▰▱▱▱▱  6%". 막대는 칸마다 색을 섞고, 숫자는 마지막 칸 색을 따른다.
@@ -306,7 +306,7 @@ function gauge(c: Palette, label: string, percent: number, cells: number): Segme
   const filled = Math.min(cells, Math.max(0, Math.round(percent / (100 / cells))))
   const at = (i: number) => ((i + 1) / cells) * 100
   return [
-    { text: `${label} `, dim: true },
+    { text: `${label} `, color: c.text },
     ...Array.from({ length: filled }, (_, i) => ({ text: '▰', color: levelColor(c, at(i)) })),
     { text: '▱'.repeat(cells - filled), dim: true },
     { text: ` ${String(Math.round(percent)).padStart(2)}%`, color: levelColor(c, filled === 0 ? 0 : at(filled - 1)) },
@@ -315,12 +315,12 @@ function gauge(c: Palette, label: string, percent: number, cells: number): Segme
 
 // gauge 모양: 윗줄은 게이지만, 각 게이지 옆에 흐린 글자로 딸린 정보(토큰, 다시 차기까지 남은 시간)를 붙인다.
 // 아랫줄은 무엇으로 어디서 일하는지. 맨 앞 세로줄이 두 줄을 묶는다.
-//   ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% 409K/1.0M   5h ▰▱▱▱▱  6% (2h13m)   7d ▰▱▱▱▱ 26% (3d4h)   fable ▰▱▱▱▱ 12% (3d4h)
+//   ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% (409K/1.0M)   5h ▰▱▱▱▱  6% (2h/13m)   7d ▰▱▱▱▱ 26% (3d/4h)   fable ▰▱▱▱▱ 12% (3d/4h)
 //   ▌ 🧠 Opus xhigh · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
 function gaugeLayout(s: Snapshot, c: Palette): Layout {
   const gap: Segment = { text: '   ' }
   const note = (text: string | null): Segment[] => (text === null ? [] : [{ text: ` ${text}`, dim: true }])
-  // 다시 차기까지 남은 시간은 괄호로 감싸 비율 숫자와 구분한다.
+  // 쓴 토큰과 다시 차기까지 남은 시간은 괄호로 감싸 비율 숫자와 구분한다.
   const left = (text: string | null) => note(text === null ? null : `(${text})`)
   const gauges: Segment[][] = []
   const percent =
@@ -328,7 +328,7 @@ function gaugeLayout(s: Snapshot, c: Palette): Layout {
   if (percent !== undefined) {
     const tokens =
       s.context.tokens === undefined ? null : `${compactTokens(s.context.tokens)}/${compactTokens(s.context.window)}`
-    gauges.push([...gauge(c, 'ctx', percent, BAR_CELLS), ...note(tokens)])
+    gauges.push([...gauge(c, 'ctx', percent, BAR_CELLS), ...left(tokens)])
   }
   const now = s.nowMs ?? Date.now()
   const five = s.rateLimits.find(r => r.kind === 'five_hour')

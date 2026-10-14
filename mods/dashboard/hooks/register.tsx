@@ -243,7 +243,7 @@ async function start($: EngineInterface): Promise<void> {
   await $.command
     .register({
       name: STYLE_COMMAND,
-      description: '입력창 아래 대시보드 모양을 바꿔요. 이름 없이 실행하면 다음 모양으로 넘어가요',
+      description: '입력창 아래 대시보드 모양을 바꿔요. 이름을 빼면 다음 모양으로 바뀌어요',
       argumentHint: `[${STYLES.join('|')}]`,
       immediate: true,
     })
@@ -251,7 +251,7 @@ async function start($: EngineInterface): Promise<void> {
   await $.command
     .register({
       name: THEME_COMMAND,
-      description: '입력창 아래 대시보드 색을 바꿔요. 이름 없이 실행하면 다음 색으로 넘어가요',
+      description: '입력창 아래 대시보드 색을 바꿔요. 이름을 빼면 다음 색으로 바뀌어요',
       argumentHint: `[${THEME_NAMES.join('|')}]`,
       immediate: true,
     })
@@ -309,12 +309,12 @@ export const register: Register = on => {
     const now = await currentStyle($)
     const next = asked === '' ? (STYLES[(STYLES.indexOf(now) + 1) % STYLES.length] ?? 'gauge') : (asked as Style)
     if (!STYLES.includes(next)) {
-      return { text: `모르는 모양이에요. ${STYLES.join(', ')} 중에서 골라 주세요.` }
+      return { text: `없는 모양이에요. ${STYLES.join(', ')} 중에서 골라 주세요.` }
     }
     await update($, style, () => next)
     await $.store.set(STYLE_KEY, next)
     await refresh($)
-    return { text: `대시보드를 ${STYLE_NAMES[next]}(${next})로 바꿨어요.` }
+    return { text: `대시보드 모양을 ${STYLE_NAMES[next]}(${next})로 바꿨어요.` }
   })
 
   // /dashboard-theme [이름]: 색을 바꾼다. 이름이 없으면 다음 색으로 넘어간다.
@@ -323,7 +323,7 @@ export const register: Register = on => {
     const now = await currentTheme($)
     const next = asked === '' ? (THEME_NAMES[(THEME_NAMES.indexOf(now) + 1) % THEME_NAMES.length] ?? 'everforest') : (asked as Theme)
     if (!THEME_NAMES.includes(next)) {
-      return { text: `모르는 색이에요. ${THEME_NAMES.join(', ')} 중에서 골라 주세요.` }
+      return { text: `없는 색이에요. ${THEME_NAMES.join(', ')} 중에서 골라 주세요.` }
     }
     await update($, theme, () => next)
     await $.store.set(THEME_KEY, next)
