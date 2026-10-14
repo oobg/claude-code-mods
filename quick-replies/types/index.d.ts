@@ -5,6 +5,6 @@ export type Mode = { kind: 'view' } | { kind: 'edit'; editingId: string | null }
 
 declare module 'claude-code' {
   interface PluginState {
-    'quick-replies': { repo: string | null; replies: Reply[] | null; mode: Mode }
+    'quick-replies': { repo: string | null; replies: Reply[] | null; mode: Mode; permissionMode: string | null }
   }
 }

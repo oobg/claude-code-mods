@@ -21,10 +21,15 @@ const HINT = {
 const SURFACES = ['terminal', 'desktop'] as const
 
 // 세션이 `cwd`에서 돈다. git은 없다고 답하므로 cwd가 곧 저장소다.
-function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}) {
+// 기록 파일의 끝(tail)을 물으면 `transcript`를 돌려준다.
+function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}, transcript?: string) {
   mock.store(on, stored)
   on('session.cwd', () => ({ value: cwd }))
-  on('process.run', () => ({ deny: 'not a git repository' }))
+  on('process.run', (_$, e) =>
+    (e as { argv: string[] }).argv[0] === 'tail' && transcript !== undefined
+      ? { value: { exitCode: 0, stdout: transcript, stderr: '' } as never }
+      : { deny: 'not a git repository' },
+  )
   // 모드가 비켜 줄 때 엔진이 그리는 자리.
   on('ui.render', { component: 'PromptHint' }, ($, e) => {
     const { Text } = $.ui.resolve(e)
@@ -113,5 +118,21 @@ describe('quick-replies', () => {
     expect(await ui.find({ type: 'Text', text: 'engine-band' })).toBeDefined()
     await ui.unmount()
     await hint.unmount()
+  })
+
+  test('버튼 구역은 권한 모드 줄 밑에 따로 두고 모드 폭만큼 당긴다', async ($, on) => {
+    inRepo(on, '/repo/one', {}, '{"permissionMode":"auto"}\n')
+    mock.env(on, { HOME: '/home/me' })
+    on('session.id', () => ({ value: 'abc' }))
+    on('session.root', () => ({ value: '/repo/one' }))
+    on('session.start', () => ({ cwd: '/repo/one' }))
+    await $.session.start({ source: 'startup', cwd: '/repo/one' } as never)
+
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...HINT })
+    const section = await ui.find({ key: 'oobg-footer:10:quick-replies' })
+    expect(section?.props?.marginLeft).toBe(-18)
+    expect(await ui.find({ type: 'Text', text: '? for shortcuts' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: '지금 진행상황' })).toBeDefined()
+    await ui.unmount()
   })
 })
