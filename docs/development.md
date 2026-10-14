@@ -35,6 +35,10 @@ npm run render -- editor  # 장면 하나만
 npm run studio            # 브라우저에서 미리 보기
 ```
 
+`npm run render --` 뒤에는 장면 이름이나 `banner`를 하나 넣는다. 장면 이름은 `substitute`, `suggest`, `fold`, `editor`, `gauge`, `styles`, `paste`, `undo`다.
+
+글꼴은 [D2Coding](https://github.com/naver/d2codingfont)을 쓴다. 렌더링하는 컴퓨터에 설치돼 있지 않으면 다른 고정폭 글꼴로 바뀌어 한글 폭과 모양이 달라지니, 먼저 설치한다.
+
 ## 구조
 
 ```
