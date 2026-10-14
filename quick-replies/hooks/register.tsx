@@ -177,15 +177,27 @@ async function titleAll($: EngineInterface): Promise<void> {
   }
 }
 
-// 띠의 requestId. 편집 화면을 열 때 키보드 포커스를 띠로 옮기는 데 쓴다(그릴 때마다 갱신).
-let bandId: string | null = null
-
-// 편집 화면을 열고 키보드 포커스를 띠로 옮긴다. 그래야 글자 키가 입력창 대신 편집 화면으로 간다.
+// 편집 화면을 연다. 키보드는 입력창에 그대로 두고, 편집하는 동안 입력창에 치는 키를 이 모드가 가로챈다.
+// 띠로 포커스를 옮기면 모드가 입력창으로 되돌릴 방법이 없어서다.
 async function openEditor($: EngineInterface): Promise<void> {
   await update($, mode, () => ({ kind: 'edit', selected: null, input: null }) as Mode)
-  if (bandId !== null) {
-    await $.ui.focus({ requestId: bandId, key: 'done' }).catch(() => {})
-  }
+}
+
+// 문구를 쓰는 동안 입력창 글자에 칠하는 색. 입력창 테두리는 모드가 바꿀 수 없어 글자로 편집 중임을 보인다.
+const inputPaint = (text: string) => [{ start: 0, end: text.length, color: ACCENT } as const]
+
+// 입력칸을 연다. 입력창이 곧 입력칸이라, 고칠 때는 원래 글을 입력창에 채워 둔다.
+async function startInput($: EngineInterface, editing: EditInput): Promise<void> {
+  const presets = await current($)
+  const target = editing.kind === 'add' ? undefined : [...presets.global, ...presets.project].find(r => r.id === editing.id)
+  const text = editing.kind === 'rename' ? (target?.text ?? '') : editing.kind === 'title' ? (target?.title ?? '') : ''
+  await update($, mode, m => (m.kind === 'edit' ? { ...m, input: editing } : m))
+  await $.prompt.fill({ text, decorations: inputPaint(text) })
+}
+
+async function cancelInput($: EngineInterface): Promise<void> {
+  await update($, mode, m => (m.kind === 'edit' ? { ...m, input: null } : m))
+  await $.prompt.fill({ text: '' })
 }
 
 // 입력칸에서 Enter를 누르면 추가하거나 고친다. 빈 문구는 무시하고, 빈 제목은 제목을 지운다.
@@ -215,9 +227,6 @@ async function submitInput($: EngineInterface, editing: EditInput, text: string)
     }
   }
   await update($, mode, m => (m.kind === 'edit' ? { ...m, input: null } : m))
-  if (bandId !== null) {
-    await $.ui.focus({ requestId: bandId, key: 'done' }).catch(() => {})
-  }
 }
 
 async function removePreset($: EngineInterface, id: string): Promise<void> {
@@ -254,6 +263,47 @@ async function reorder($: EngineInterface, id: string, by: number): Promise<void
   await save($, p => ({ ...p, global: shifted(p.global, id, by), project: shifted(p.project, id, by) }))
 }
 
+// 편집 화면에서 고르는 중일 때 입력창에 친 글자 하나를 동작으로 바꾼다. 띠의 버튼과 같은 동작이다.
+async function editorKey($: EngineInterface, key: string): Promise<void> {
+  const shown = await read($, mode)
+  if (shown.kind !== 'edit') {
+    return
+  }
+  const presets = await current($)
+  const all = [
+    ...presets.global.map(reply => ({ reply, scope: 'global' as Scope })),
+    ...presets.project.map(reply => ({ reply, scope: 'project' as Scope })),
+  ]
+  if (/^[1-9]$/.test(key)) {
+    const picked = all[Number(key) - 1]
+    if (picked !== undefined) {
+      await update($, mode, m => (m.kind === 'edit' ? { ...m, selected: picked.reply.id, input: null } : m))
+    }
+    return
+  }
+  const selected = all.find(item => item.reply.id === shown.selected)
+  const actions: Record<string, () => Promise<void>> = {
+    a: () => startInput($, { kind: 'add', scope: 'global' }),
+    l: () => startInput($, { kind: 'add', scope: 'project' }),
+    q: async () => {
+      await update($, mode, () => ({ kind: 'view' }) as Mode)
+    },
+    ...(selected === undefined
+      ? {}
+      : {
+          e: () => startInput($, { kind: 'rename', id: selected.reply.id }),
+          t: () => startInput($, { kind: 'title', id: selected.reply.id }),
+          d: () => removePreset($, selected.reply.id),
+          m: () => movePreset($, selected.reply.id),
+          k: () => reorder($, selected.reply.id, -1),
+          j: () => reorder($, selected.reply.id, 1),
+        }),
+  }
+  await actions[key]?.()
+}
+
+const SAVED: Record<EditInput['kind'], string> = { add: '프리셋을 추가했어요', rename: '문구를 고쳤어요', title: '제목을 바꿨어요' }
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -265,6 +315,24 @@ export const register: Register = on => {
   // 입력창에 `$5`처럼 치면 그 자리를 그 번호의 프리셋 문구로 바꾼다. 번호는 띠에 보이는 것과 같게 셈한다.
   // `$e`는 편집 화면을 열고 `$0`은 프리셋을 접거나 편다. 이때 친 `$e`, `$0`은 입력창에 남기지 않는다.
   on('prompt.edit', async ($, e, next) => {
+    const shown = await read($, mode)
+    if (shown.kind === 'edit') {
+      // 고르는 중에는 입력창에 친 글자를 하나도 넣지 않고 편집 동작으로만 쓴다.
+      if (shown.input === null) {
+        if (e.key !== undefined && e.inputText.length === 1) {
+          void editorKey($, e.inputText.toLowerCase())
+        }
+        return next({ ...e, start: e.cursor, end: e.cursor, inputText: '' })
+      }
+      // 문구를 쓰는 중에는 입력창이 입력칸이다. `$q`를 치면 취소한다.
+      if (typedAfterDollar(e) === 'q') {
+        const box = await next({ ...e, start: e.start - 1, inputText: '' })
+        void cancelInput($)
+        return box
+      }
+      const box = await next(e)
+      return { ...box, decorations: inputPaint(box.text) }
+    }
     const typed = typedAfterDollar(e)
     if ((typed === 'e' || typed === '0') && (await read($, mode)).kind === 'view') {
       const box = await next({ ...e, start: e.start - 1, inputText: '' })
@@ -282,15 +350,30 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // 편집하는 동안 Enter는 Claude에게 보내지 않는다. 문구를 쓰는 중이면 그 글을 저장하고, 결과를 알림 대신 보내기를 막은 이유로 보인다.
+  on('prompt.submit', async ($, e, next) => {
+    const shown = await read($, mode)
+    if (shown.kind !== 'edit' || e.origin.kind !== 'composer') {
+      return next(e)
+    }
+    if (shown.input === null) {
+      return { drop: '프리셋 편집 중이에요. q로 편집을 끝낸 뒤 보내 주세요' }
+    }
+    const editing = shown.input
+    const text = e.text.trim()
+    await submitInput($, editing, text)
+    void $.prompt.fill({ text: '' })
+    return { drop: text === '' && editing.kind !== 'title' ? '빈 문구라 저장하지 않았어요' : SAVED[editing.kind] }
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    // 띠는 터미널과 데스크톱에만 그려지고, 편집에 쓰는 Input도 그 둘에만 있다.
+    // 띠는 터미널과 데스크톱에만 그려진다.
     if (e.props.hasSurvey || (e.surface !== 'terminal' && e.surface !== 'desktop')) {
       return next(e)
     }
-    bandId = e.requestId
     const presets = await current($)
     const shown = await read($, mode)
-    const { Box, Button, Input, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
 
     if (shown.kind === 'view') {
       const below = await next(e)
@@ -425,15 +508,14 @@ export const register: Register = on => {
         </Box>
       )
     }
-    const action = (key: string, hotkey: string, label: string, onPress: () => unknown) => (
-      <Button key={key} label={label} hotkey={hotkey} plain onPress={() => void onPress()} />
+    // 버튼을 클릭해도 입력창에 그 글자를 친 것과 같은 동작을 한다.
+    const action = (key: string, hotkey: string, label: string) => (
+      <Button key={key} label={label} hotkey={hotkey} plain onPress={() => void editorKey($, hotkey)} />
     )
 
     let inputRow = null
     if (shown.input !== null) {
       const editing = shown.input
-      const target = editing.kind === 'add' ? undefined : all.find(x => x.reply.id === editing.id)?.reply
-      const original = editing.kind === 'rename' ? target?.text : editing.kind === 'title' ? target?.title : undefined
       const title =
         editing.kind === 'rename'
           ? '문구 수정'
@@ -445,19 +527,14 @@ export const register: Register = on => {
       inputRow = (
         <Box flexDirection="row" columnGap={1}>
           <Text color={ACCENT}>{title}</Text>
-          <Input
-            key="input"
-            {...(original === undefined ? {} : { value: original })}
-            placeholder={
-              editing.kind === 'title' ? '접었을 때 보일 짧은 이름 (비우면 문구를 줄여 보여요)' : '문구, 또는 /스킬 이름과 문구'
-            }
-            submitLabel="저장"
-            autoFocus
-            onSubmit={(value: string) => {
-              void submitInput($, editing, value.trim())
-            }}
-          />
-          <Button key="cancel" label="취소" plain dimColor onPress={() => setEdit({ input: null })} />
+          <Text dimColor>
+            {editing.kind === 'title' ? '입력창에 접었을 때 보일 짧은 이름을 쓰고 Enter (비우면 문구를 줄여 보여요)' : '입력창에 문구, 또는 /스킬 이름과 문구를 쓰고 Enter'}
+          </Text>
+          <Button key="cancel" label="$q: 취소" plain onPress={() => cancelInput($)}>
+            <Text>
+              <Text color={ACCENT}>$q:</Text> <Text dimColor>취소</Text>
+            </Text>
+          </Button>
         </Box>
       )
     }
@@ -466,26 +543,24 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={2}>
           <Text bold>프리셋 편집</Text>
-          {action('add-global', 'a', '전역에 추가', () => setEdit({ input: { kind: 'add', scope: 'global' } }))}
-          {action('add-project', 'l', '로컬에 추가', () => setEdit({ input: { kind: 'add', scope: 'project' } }))}
-          {action('done', 'q', '완료', () => update($, mode, () => ({ kind: 'view' }) as Mode))}
+          {action('add-global', 'a', '전역에 추가')}
+          {action('add-project', 'l', '로컬에 추가')}
+          {action('done', 'q', '완료')}
         </Box>
         {group('전역 (모든 저장소)', 'global')}
         {group(`로컬 (${projectName})`, 'project')}
         {inputRow}
         {selected === null ? (
-          <Text dimColor>숫자를 눌러 프리셋을 고르면 수정, 제목 달기, 삭제, 옮기기를 할 수 있어요.</Text>
+          <Text dimColor>입력창에 숫자를 쳐서 프리셋을 고르면 수정, 제목 달기, 삭제, 옮기기를 할 수 있어요.</Text>
         ) : (
           <Box flexDirection="row" columnGap={2}>
             <Text dimColor>고른 프리셋</Text>
-            {action('act-edit', 'e', '문구 수정', () => setEdit({ input: { kind: 'rename', id: selected.reply.id } }))}
-            {action('act-title', 't', '제목', () => setEdit({ input: { kind: 'title', id: selected.reply.id } }))}
-            {action('act-delete', 'd', '삭제', () => removePreset($, selected.reply.id))}
-            {action('act-move', 'm', selected.scope === 'global' ? '로컬로' : '전역으로', () =>
-              movePreset($, selected.reply.id),
-            )}
-            {action('act-up', 'k', '위로', () => reorder($, selected.reply.id, -1))}
-            {action('act-down', 'j', '아래로', () => reorder($, selected.reply.id, 1))}
+            {action('act-edit', 'e', '문구 수정')}
+            {action('act-title', 't', '제목')}
+            {action('act-delete', 'd', '삭제')}
+            {action('act-move', 'm', selected.scope === 'global' ? '로컬로' : '전역으로')}
+            {action('act-up', 'k', '위로')}
+            {action('act-down', 'j', '아래로')}
           </Box>
         )}
       </Box>
