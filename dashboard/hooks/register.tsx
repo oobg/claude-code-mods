@@ -166,7 +166,19 @@ async function render($: EngineInterface): Promise<void> {
     nowMs: now,
   }
   await update($, snapshot, () => taken)
-  await update($, permissionMode, () => mode)
+  // 새 세션은 기록 파일에 권한 모드가 아직 없다. 그때는 훅 이벤트로 받아 둔 값을 그대로 둔다.
+  if (mode !== null) {
+    await update($, permissionMode, () => mode)
+  }
+}
+
+// Claude Code의 기본 훅 이벤트에는 지금 권한 모드가 실려 온다. 새 세션은 기록 파일에 아직 권한 모드가 없어서,
+// 이 값으로 권한 모드 표시 폭만큼 당긴다.
+async function notePermissionMode($: EngineInterface, e: { permission_mode?: string }): Promise<void> {
+  const mode = e.permission_mode
+  if (typeof mode === 'string' && mode !== (await read($, permissionMode))) {
+    await update($, permissionMode, () => mode)
+  }
 }
 
 // 세션마다 한 번: 저장된 선택을 읽고, 명령을 등록하고, 타이머를 건다.
@@ -235,6 +247,16 @@ export const register: Register = on => {
     await start($)
     await refresh($)
     return result
+  })
+
+  // 받기만 하고 이벤트는 그대로 흘려보낸다.
+  on('classic.SessionStart', async ($, e, next) => {
+    await notePermissionMode($, e)
+    return next(e)
+  })
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    await notePermissionMode($, e)
+    return next(e)
   })
 
   // /dashboard-style [이름]: 모양을 바꾼다. 이름이 없으면 다음 모양으로 넘어간다.

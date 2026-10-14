@@ -285,4 +285,33 @@ describe('dashboard', () => {
     expect(await ui.find({ type: 'Text', text: /│/ })).toBeUndefined()
     await ui.unmount()
   })
+
+  test('새 세션처럼 기록에 권한 모드가 없으면 훅 이벤트의 권한 모드로 당긴다', async ($, on) => {
+    mock.env(on, { HOME: '/home/me' })
+    mock.store(on)
+    mock.clock(on)
+    on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1_000_000 }, rateLimits: [] } }))
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    on('session.cwd', () => ({ value: '/work/repo' }))
+    on('session.root', () => ({ value: '/work/repo' }))
+    on('session.id', () => ({ value: 'abc12345-0000' }))
+    on('fs.read', () => ({ value: '{}' }))
+    on('fs.list', () => ({ value: [] as never }))
+    on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '' } as never }))
+    on('ui.render', { component: 'PromptHint' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-hint</Text>
+    })
+    on('classic.SessionStart', () => ({}) as never)
+    on('prompt.submit', () => ({ text: '' }) as never)
+    await $.classic.SessionStart({ source: 'startup', permission_mode: 'bypassPermissions' } as never)
+    await $.prompt.submit({ text: 'hi' } as never)
+    let ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
+    for (let i = 0; i < 50 && (await ui.find({ key: 'oobg-footer:20:dashboard' })) === undefined; i++) {
+      await ui.unmount()
+      ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
+    }
+    expect((await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft).toBe(-27)
+    await ui.unmount()
+  })
 })
