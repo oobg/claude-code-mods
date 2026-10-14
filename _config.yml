@@ -1,0 +1,12 @@
+# GitHub Pages 설정. 저장소 루트를 사이트로 쓴다: README.md가 첫 화면, docs/*.md가 모드 문서다.
+title: claude-code-mods
+description: Claude Code 입력창 주변에 기능을 추가하는 모드 모음
+lang: ko
+theme: jekyll-theme-primer
+# README와 문서가 쓰는 로고와 장면 이미지가 .github/assets/에 있어서 사이트에 포함한다.
+include:
+  - .github
+exclude:
+  - mods
+  - demo
+  - .claude-plugin

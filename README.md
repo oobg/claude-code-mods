@@ -23,7 +23,7 @@
   &nbsp;|&nbsp;
   <a href="#상세-문서"><b>상세 문서</b></a>
   &nbsp;|&nbsp;
-  <a href="./docs/development.md"><b>개발 가이드</b></a>
+  <a href="https://oobg.github.io/claude-code-mods/"><b>문서 사이트</b></a>
 </p>
 
 claude-code-mods는 Claude Code 입력창 주변에 기능을 추가하는 모드 모음이다. 입력창 위에서는 다음에 보낼 요청을 제안하고, 입력창 아래에서는 세션 상태를 표시한다. 입력창에서는 파일을 붙여넣거나 입력한 내용을 되돌리기가 편해진다. **모드는 필요한 것만 골라 설치하면 되고, 따로 설치할 프로그램은 없다.**
@@ -162,13 +162,14 @@ key-assist를 삭제해도 키 설정에 추가된 `cmd+z` 항목은 남는다. 
 
 ## 상세 문서
 
+같은 문서를 [문서 사이트](https://oobg.github.io/claude-code-mods/)에서도 볼 수 있다.
+
 | 문서 | 내용 |
 | --- | --- |
 | [next-prompts](./docs/next-prompts.md) | 제안이 나오는 조건, 나타나는 방식, 모델 호출과 사용량 |
 | [quick-replies](./docs/quick-replies.md) | 프리셋 범위와 번호, 접기와 자동 제목, 편집 화면 키, 저장 데이터 |
 | [dashboard](./docs/dashboard.md) | 항목 설명, 표시 형태와 색상, `/usage` 조회, 참고 사항 |
 | [key-assist](./docs/key-assist.md) | 파일 붙여넣기 동작, Cmd+Z 키 설정, 제한 사항 |
-| [개발 가이드](./docs/development.md) | 입력창 위 영역을 여러 모드가 나눠 쓰는 방법, 개발 환경, 저장소 구조 |
 
 ## 라이선스
 
