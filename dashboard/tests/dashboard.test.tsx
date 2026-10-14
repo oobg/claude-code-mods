@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { buildLines, compactTokens, duration } from '../hooks/lines'
+import { PALETTE, buildLines, compactTokens, duration, parseFableWeek } from '../hooks/lines'
 import type { Snapshot } from '../hooks/lines'
 
 const HINT = {
@@ -18,6 +18,7 @@ const SNAPSHOT: Snapshot = {
     { kind: 'five_hour', percentUsed: 6 },
     { kind: 'seven_day', percentUsed: 26 },
   ],
+  fableWeek: 12,
   folder: 'claude-code-mods',
   branch: 'main',
   email: 'you@example.com',
@@ -29,6 +30,7 @@ const text = (row: { text: string }[] | undefined) => (row ?? []).map(s => s.tex
 // 세션 값과 파일, 명령을 흉내 낸다. 기록 파일의 마지막 권한 모드는 `mode`다.
 function session(on: On, mode: string) {
   mock.env(on, { HOME: '/home/me' })
+  mock.store(on)
   on('session.usage', () => ({
     value: {
       startedAt: 0,
@@ -61,10 +63,24 @@ function session(on: On, mode: string) {
 }
 
 describe('dashboard', () => {
-  test('세션 값으로 두 줄을 짠다', () => {
+  test('세 가지 모양으로 줄을 짠다', () => {
     const [first, second] = buildLines(SNAPSHOT)
-    expect(text(first)).toBe('◆ Opus(X) │ ████░░░░░░ │ 41% │ 409K/1.0M │ $18.17 │ 5시간: 6% │ 7일: 26%')
+    expect(text(first)).toBe('◆ Opus(X) │ ████░░░░░░ 41% │ 409K/1.0M │ $18.17 │ 5시간 6% │ 7일 26% │ Fable 12%')
     expect(text(second)).toBe('📁 claude-code-mods (main) │ 🔑 you@example.com │ ⏱ 52분 │ 🔥 7.9K/min')
+
+    const [e1, e2] = buildLines(SNAPSHOT, 'emoji')
+    expect(text(e1)).toBe('🧠 Opus(X) │ ████░░░░░░ 41% │ 💬 409K/1.0M │ 💰 $18.17 │ ⏳ 5시간 6% │ 📅 7일 26% │ 🪶 Fable 12%')
+    expect(text(e2)).toBe('📁 claude-code-mods 🌿 main │ 🔑 you@example.com │ ⏱ 52분 │ 🔥 7.9K/min')
+
+    const compact = buildLines(SNAPSHOT, 'compact')
+    expect(compact).toHaveLength(1)
+    expect(text(compact[0])).toBe('◆ Opus(X) │ 41% │ $18.17 │ 5시간 6% │ 7일 26% │ Fable 12% │ 🌿 main')
+  })
+
+  test('/usage 출력에서 이번 주 Fable 사용량을 읽는다', () => {
+    const usage = 'Current week (all models): 28% used · resets Oct 17\nCurrent week (Fable): 3.5% used · resets Oct 17'
+    expect(parseFableWeek(usage)).toBe(3.5)
+    expect(parseFableWeek('Current session: 6% used')).toBeNull()
   })
 
   test('모르는 값은 그 칸을 빼고, effort가 아직 없으면 모델 이름만 보인다', () => {
@@ -74,6 +90,7 @@ describe('dashboard', () => {
       context: { window: 200_000 },
       costUsd: null,
       rateLimits: [],
+      fableWeek: null,
       branch: null,
       email: null,
       elapsedMs: 30_000,
@@ -82,12 +99,18 @@ describe('dashboard', () => {
     expect(text(second)).toBe('📁 claude-code-mods │ ⏱ 0분')
   })
 
-  test('많이 찰수록 경고 색으로 바뀐다', () => {
+  test('칸마다 파스텔 색을 쓰고, 찬 정도는 연두, 연노랑, 연분홍빛 빨강으로 바뀐다', () => {
     const color = (percent: number) =>
       buildLines({ ...SNAPSHOT, context: { tokens: 1, window: 100, percent } })[0]?.find(s => s.text === `${percent}%`)?.color
-    expect(color(20)).toBe('success')
-    expect(color(60)).toBe('warning')
-    expect(color(90)).toBe('error')
+    expect(color(20)).toBe(PALETTE.ok)
+    expect(color(60)).toBe(PALETTE.warn)
+    expect(color(90)).toBe(PALETTE.high)
+    // 구분자와 막대의 빈칸만 흐리게 두고, 나머지 글자는 모두 색이 있다.
+    const uncolored = buildLines(SNAPSHOT)
+      .flat()
+      .filter(seg => seg.color === undefined)
+      .map(seg => seg.text)
+    expect(new Set(uncolored)).toEqual(new Set([' │ ', '░░░░░░', ' ']))
   })
 
   test('토큰과 시간을 줄여 쓴다', () => {
@@ -130,14 +153,43 @@ describe('dashboard', () => {
       expect(await ui.find({ type: 'Text', text: '◆ Opus(X)' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: '$12.58' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: '🔑 me@example.com' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: '📁 repo' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: ' (main)' })).toBeDefined()
-      // 색이 없는 글자(구분자, 이메일 등)는 흐리게 그린다.
+      // 구분자는 흐리게, 나머지는 파스텔 색으로 그린다.
       const pieces = await ui.findAll({ type: 'Text', text: /│|me@example/ })
       expect(pieces.find(p => p.text === ' │ ')?.props?.dimColor).toBe(true)
-      expect(pieces.find(p => p.text === '🔑 me@example.com')?.props?.dimColor).toBe(true)
+      expect(pieces.find(p => p.text === '🔑 me@example.com')?.props?.color).toBe(PALETTE.email)
+      expect(pieces.find(p => p.text === '🔑 me@example.com')?.props?.dimColor).toBe(false)
       const section = await ui.find({ key: 'oobg-footer:20:dashboard' })
       expect(section?.props?.marginLeft).toBe(-27)
       await ui.unmount()
     }
+  })
+
+  test('/dashboard-style로 모양을 바꾸고, 사람이 /usage를 실행하면 Fable 사용량을 붙인다', async ($, on) => {
+    session(on, 'default')
+    on('command.register', () => ({ value: { command: 'dashboard-style' } as never }))
+    on('command.run', { command: 'usage' }, () => ({ text: 'Current week (Fable): 7% used · resets Oct 17' }))
+    await $.session.start({ source: 'startup', cwd: '/work/repo' } as never)
+
+    const run = (command: string, args = '') => $.command.run({ command, args } as never) as Promise<{ text?: string }>
+    expect((await run('dashboard-style')).text).toContain('emoji')
+    let ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
+    expect(await ui.find({ type: 'Text', text: '🧠 Opus' })).toBeDefined()
+    await ui.unmount()
+
+    expect((await run('dashboard-style', 'compact')).text).toContain('한 줄')
+    expect((await run('dashboard-style', 'fancy')).text).toContain('모르는 모양')
+
+    await run('usage')
+    ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
+    for (let i = 0; i < 50 && (await ui.find({ type: 'Text', text: '7%' })) === undefined; i++) {
+      await ui.unmount()
+      ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
+    }
+    expect(await ui.find({ type: 'Text', text: 'Fable ' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '7%' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '🔑 me@example.com' })).toBeUndefined()
+    await ui.unmount()
   })
 })

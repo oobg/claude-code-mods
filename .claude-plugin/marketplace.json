@@ -17,7 +17,7 @@
     {
       "name": "dashboard",
       "source": "./dashboard",
-      "description": "모델, 컨텍스트, 요금, 사용 한도, 브랜치를 입력창 아래 권한 모드 줄 밑에 두 줄로 그린다"
+      "description": "모델, 컨텍스트, 요금, 사용 한도(Fable 포함), 브랜치를 입력창 아래에 그린다. /dashboard-style로 모양을 바꾼다"
     }
   ]
 }

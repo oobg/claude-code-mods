@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Segment } from '../types'
+import type { Segment, Style } from '../types'
 import { lastPermissionMode, pullFor, withSection } from './footer'
-import { buildLines } from './lines'
+import { STYLES, buildLines, parseFableWeek } from './lines'
 
 // 바닥 틀 안의 순서. 다른 구역이 생기면 이 숫자로 위아래를 정한다.
 const ORDER = 20
@@ -14,6 +14,23 @@ const lines = atom({ plugin: 'dashboard', key: 'lines' } as const, [] as Segment
 const permissionMode = atom({ plugin: 'dashboard', key: 'permissionMode' } as const, null as string | null)
 // 모델 요청에 실린 effort. 모드가 effort를 따로 읽을 길이 없어서, 메인 대화의 요청이 나갈 때 받아 둔다. 첫 요청 전에는 null.
 const effort = atom({ plugin: 'dashboard', key: 'effort' } as const, null as string | null)
+// 대시보드 모양과 이번 주 Fable 사용량. 둘 다 저장해 두고 다음 세션에도 쓴다.
+const style = atom({ plugin: 'dashboard', key: 'style' } as const, null as Style | null)
+const fableWeek = atom({ plugin: 'dashboard', key: 'fableWeek' } as const, null as number | null)
+
+const STYLE_KEY = 'style'
+const FABLE_KEY = 'fableWeek'
+const STYLE_COMMAND = 'dashboard-style'
+const STYLE_NAMES: Record<Style, string> = { calm: '차분한 두 줄', emoji: '이모지 두 줄', compact: '한 줄' }
+
+async function currentStyle($: EngineInterface): Promise<Style> {
+  const held = (await read($, style)) ?? ((await $.store.get(STYLE_KEY)) as Style | undefined)
+  return held !== undefined && held !== null && STYLES.includes(held) ? held : 'calm'
+}
+
+async function currentFable($: EngineInterface): Promise<number | null> {
+  return (await read($, fableWeek)) ?? (((await $.store.get(FABLE_KEY)) as number | undefined) ?? null)
+}
 
 // 이 세션의 기록 파일 끝부분을 읽는다. 기록은 세션을 연 폴더 이름 아래 저장되는데, 현재 폴더는 세션 중에 바뀔 수 있다.
 // 프로젝트 루트, 현재 폴더 순서로 읽어 보고, 둘 다 없으면 기록 폴더 전체에서 세션 id로 찾는다.
@@ -97,11 +114,12 @@ async function render($: EngineInterface): Promise<void> {
     context: usage.context,
     costUsd: usage.cost?.usd ?? null,
     rateLimits: usage.rateLimits,
+    fableWeek: await currentFable($),
     folder: root.split('/').filter(Boolean).at(-1) ?? root,
     branch,
     email,
     elapsedMs: now - usage.startedAt,
-  })
+  }, await currentStyle($))
   await update($, lines, () => rows)
   await update($, permissionMode, () => mode)
 }
@@ -109,7 +127,19 @@ async function render($: EngineInterface): Promise<void> {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    const [chosen, fable] = [await currentStyle($), await currentFable($)]
+    await update($, style, () => chosen)
+    await update($, fableWeek, () => fable)
     await refresh($)
+    // 명령 등록이 막혀도 대시보드는 그린다.
+    await $.command
+      .register({
+        name: STYLE_COMMAND,
+        description: '입력창 아래 대시보드 모양을 바꿔요. 이름 없이 실행하면 다음 모양으로 넘어가요',
+        argumentHint: `[${STYLES.join('|')}]`,
+        immediate: true,
+      })
+      .catch(() => {})
     $.clock.every(REFRESH_MS, () => {
       void refresh($)
     })
@@ -132,6 +162,32 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     await refresh($)
+    return result
+  })
+
+  // /dashboard-style [이름]: 모양을 바꾼다. 이름이 없으면 다음 모양으로 넘어간다.
+  on('command.run', { command: STYLE_COMMAND }, async ($, e) => {
+    const asked = e.args.trim()
+    const now = await currentStyle($)
+    const next = asked === '' ? (STYLES[(STYLES.indexOf(now) + 1) % STYLES.length] ?? 'calm') : (asked as Style)
+    if (!STYLES.includes(next)) {
+      return { text: `모르는 모양이에요. ${STYLES.join(', ')} 중에서 골라 주세요.` }
+    }
+    await update($, style, () => next)
+    await $.store.set(STYLE_KEY, next)
+    await refresh($)
+    return { text: `대시보드를 ${STYLE_NAMES[next]}(${next})로 바꿨어요.` }
+  })
+
+  // 사람이 /usage를 실행하면 그 출력에서 이번 주 Fable 사용량을 읽어 둔다. 모드가 /usage를 직접 부르면 대화에 출력이 남아서 부르지 않는다.
+  on('command.run', { command: 'usage' }, async ($, e, next) => {
+    const result = await next(e)
+    const found = parseFableWeek(result.text ?? '')
+    if (found !== null) {
+      await update($, fableWeek, () => found)
+      await $.store.set(FABLE_KEY, found)
+      void refresh($)
+    }
     return result
   })
 
