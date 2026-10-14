@@ -96,17 +96,22 @@ claude-code-mods는 Claude Code 입력창 주변에 기능을 더하는 모드 �
 
 ### 마켓플레이스로
 
-이 저장소가 곧 `oobg` 마켓플레이스다. Claude Code 프롬프트에 아래 명령을 입력한다.
+이 저장소가 곧 `oobg` 마켓플레이스다. 먼저 Claude Code 프롬프트에서 마켓플레이스를 한 번 등록한다.
 
 ```
 /plugin marketplace add oobg/claude-code-mods
+```
+
+그다음 쓰고 싶은 모드를 설치한다. 필요한 모드만 골라 설치해도 된다.
+
+```
 /plugin install next-prompts@oobg
 /plugin install quick-replies@oobg
 /plugin install dashboard@oobg
 /plugin install key-assist@oobg
 ```
 
-첫 줄은 마켓플레이스를 등록하고, 나머지는 모드를 하나씩 설치한다. 필요한 모드만 골라 설치해도 된다. 설치한 모드는 Claude Code를 다시 시작하거나 `/reload-plugins`를 실행하면 적용된다.
+설치한 모드는 Claude Code를 다시 시작하거나 `/reload-plugins`를 실행하면 적용된다.
 
 설치됐는지는 `/plugin` 화면이나 터미널의 `claude plugin list`로 확인한다. 목록에는 있는데 모드가 보이지 않으면 Claude Code를 다시 시작한다. quick-replies의 기본 프리셋과 dashboard는 시작하자마자 보이고, next-prompts의 제안은 첫 턴이 끝난 뒤에 나온다.
 
