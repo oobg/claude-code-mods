@@ -68,6 +68,7 @@ describe('quick-replies', () => {
   test('편집 화면은 키 하나로 추가, 고르기, 수정, 삭제, 옮기기, 순서 바꾸기를 한다', async ($, on) => {
     inRepo(on, '/repo/one')
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect((await ui.find({ key: 'edit' }))?.props?.hotkey).toBe('e')
     await ui.press({ key: 'edit' })
     expect((await ui.find({ key: 'add-global' }))?.props?.hotkey).toBe('a')
     expect((await ui.find({ key: 'select:default-0' }))?.props?.hotkey).toBe('1')

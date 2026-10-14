@@ -329,9 +329,8 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Box flexDirection="row" columnGap={2}>
             <Text dimColor>전역</Text>
-            <Button key="edit" label="편집" plain dimColor onPress={() => openEditor($)}>
-              ✎ 편집
-            </Button>
+            {/* 띠에 포커스가 있을 때(ctrl+x tab) e로 편집 화면을 연다. 그 뒤로는 키 하나로 다 고친다. */}
+            <Button key="edit" label="편집" hotkey="e" plain dimColor onPress={() => openEditor($)} />
             <Button
               key="compact"
               label={folded ? '펼치기' : '접기'}
