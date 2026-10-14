@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine, EngineCall } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { asMentions, insertion, mention } from '../hooks/register'
+import { asMentions, insertion, mention, withUndoKey } from '../hooks/register'
 
 describe('key-assist', () => {
   test('끼워 넣은 덩어리와 그 자리를 찾는다', async () => {
@@ -77,5 +77,28 @@ describe('key-assist 훅', () => {
     await $.prompt.submit({ origin: { kind: 'composer' }, text: '이거 봐줘 a.txt', wait: false })
     await $.prompt.submit({ origin: { kind: 'composer' }, text: '그냥 글', wait: false })
     expect(sent).toEqual(['이거 봐줘 @/p/a.txt', '그냥 글'])
+  })
+})
+
+describe('key-assist Cmd+Z 키 설정', () => {
+  test('파일이 없으면 Chat 맥락에 cmd+z 되돌리기만 든 파일을 새로 짓는다', async () => {
+    const made = JSON.parse(withUndoKey(undefined)!)
+    expect(made.bindings).toEqual([{ context: 'Chat', bindings: { 'cmd+z': 'chat:undo' } }])
+  })
+
+  test('있는 Chat 맥락에 더하고, 다른 맥락과 키는 그대로 둔다', async () => {
+    const source = JSON.stringify({ bindings: [{ context: 'Global', bindings: { 'ctrl+t': null } }, { context: 'Chat', bindings: { 'ctrl+e': 'chat:externalEditor' } }] })
+    const made = JSON.parse(withUndoKey(source)!)
+    expect(made.bindings).toEqual([
+      { context: 'Global', bindings: { 'ctrl+t': null } },
+      { context: 'Chat', bindings: { 'ctrl+e': 'chat:externalEditor', 'cmd+z': 'chat:undo' } },
+    ])
+  })
+
+  test('cmd+z를 이미 정했거나 끈 파일, 읽을 수 없는 파일은 건드리지 않는다', async () => {
+    expect(withUndoKey(JSON.stringify({ bindings: [{ context: 'Chat', bindings: { 'cmd+z': null } }] }))).toBe(undefined)
+    expect(withUndoKey(JSON.stringify({ bindings: [{ context: 'Global', bindings: { 'Command+Z': 'app:redraw' } }] }))).toBe(undefined)
+    expect(withUndoKey('{ "bindings": [ // 주석')).toBe(undefined)
+    expect(withUndoKey('{"bindings": {}}')).toBe(undefined)
   })
 })

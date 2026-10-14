@@ -34,7 +34,7 @@ Claude Code 프롬프트에 차례로 입력한다.
 | [next-prompts](#next-prompts) | 턴이 끝나면 다음에 보낼 만한 프롬프트를 제안한다 | 입력창 위 |
 | [quick-replies](#quick-replies) | 전역과 로컬(저장소별) 프리셋 문구를 두고, 숫자로 입력창에 넣거나 클릭해 바로 보낸다 | 입력창 위 |
 | [dashboard](#dashboard) | 세션 상태를 두 줄로 권한 모드 줄 밑에 그린다 | 입력창 아래 |
-| [key-assist](#key-assist) | Finder에서 복사한 파일을 붙여넣으면 파일 이름 대신 `@경로`로 넣는다 | 입력창 |
+| [key-assist](#key-assist) | Finder에서 복사한 파일을 붙여넣으면 파일 이름 대신 `@경로`로 넣고, Cmd+Z로 입력창을 되돌린다 | 입력창 |
 
 앞의 세 모드를 함께 설치하면 입력창 주변이 이렇게 정리된다.
 
@@ -267,18 +267,13 @@ Claude Code 프롬프트에 차례로 입력한다.
 
 ### Cmd+Z로 되돌리기
 
-되돌리기는 모드가 아니라 Claude Code 키 설정으로 켠다. Claude Code에는 입력창 되돌리기(`chat:undo`, 기본 `ctrl+_`)가 이미 있다. `~/.claude/keybindings.json`에 아래처럼 `cmd+z`를 더하면 Mac에서 익숙한 Cmd+Z로 되돌린다.
+설치하면 Cmd+Z로 입력창에서 친 글을 되돌릴 수 있다. Claude Code에는 입력창 되돌리기(`chat:undo`, 기본 `ctrl+_`)가 이미 있어서, 모드는 여기에 Cmd+Z를 잇기만 한다.
 
-```json
-{
-  "$schema": "https://www.schemastore.org/claude-code-keybindings.json",
-  "bindings": [
-    { "context": "Chat", "bindings": { "cmd+z": "chat:undo" } }
-  ]
-}
-```
-
-Command 키를 앱에 넘겨 주는 터미널(Kitty 키보드 프로토콜을 쓰는 Orca, Ghostty, kitty, WezTerm 등)에서만 동작한다. Ctrl+Z는 터미널에서 프로세스를 일시정지하는 키라서 쓰지 않는다. 눌러서 Claude Code가 멈췄다면 `fg`로 돌아온다.
+- 모드는 Command 키를 받지 못한다. Cmd+Z가 그냥 `z`로 와서 친 글자와 구별되지 않는다. 그래서 키를 직접 받는 대신, 설치한 뒤 처음 연 세션에서 키 설정 파일(`~/.claude/keybindings.json`)의 `Chat` 맥락에 `"cmd+z": "chat:undo"` 한 줄을 더하고 알림을 띄운다. 파일이 없으면 새로 만든다.
+- 한 번만 더한다. 그 줄을 지우면 다시 넣지 않는다.
+- `cmd+z`를 이미 어떤 기능에 정했거나 `null`로 꺼 두었으면 건드리지 않는다. 파일을 JSON으로 읽을 수 없을 때도 그대로 둔다. 이때는 위 한 줄을 직접 넣는다.
+- Command 키를 앱에 넘겨 주는 터미널(Kitty 키보드 프로토콜을 쓰는 Orca, Ghostty, kitty, WezTerm 등)에서만 동작한다.
+- Ctrl+Z는 터미널에서 프로세스를 일시정지하는 키라서 쓰지 않는다. 눌러서 Claude Code가 멈췄다면 `fg`로 돌아온다.
 
 ---
 
@@ -346,7 +341,7 @@ claude plugin test ./next-prompts
 │       └── footer.ts         # 입력창 아래를 나눠 쓰는 틀
 └── key-assist/
     └── hooks/
-        └── register.ts       # 붙여넣은 파일 이름을 클립보드의 경로로 바꿈
+        └── register.ts       # 붙여넣은 파일 이름을 클립보드의 경로로 바꾸고, Cmd+Z 키 설정을 한 번 더함
 ```
 
 `band.ts`는 next-prompts와 quick-replies에 똑같이 들어 있다. 고칠 때는 둘 다 고친다.

@@ -91,6 +91,79 @@ async function rewrite($: EngineInterface, before: string, after: string): Promi
   }
 }
 
+// Cmd+Z 되돌리기. 모드는 Command 키를 받지 못해(Cmd+Z가 그냥 z로 온다) 직접 되돌릴 수 없다.
+// 대신 엔진의 되돌리기(chat:undo)에 cmd+z를 잇는 줄을 키 설정 파일에 한 번 넣는다.
+const UNDO_KEY = 'cmd+z'
+const UNDO_ACTION = 'chat:undo'
+const UNDO_DONE = 'undo-key-done'
+
+type KeyBlock = { context?: unknown; bindings?: unknown }
+
+// cmd+z와 같은 키를 가리키는 다른 표기(command+z, super+z, win+z)도 이미 정한 것으로 본다.
+const isUndoKey = (key: string) => key.toLowerCase().replace(/\b(command|super|win)\+/g, 'cmd+') === UNDO_KEY
+
+// 키 설정 파일 글에 cmd+z 되돌리기를 더한 글을 낸다. 파일이 없으면 새로 짓는다.
+// 사람이 cmd+z를 이미 어느 맥락에든 정해 뒀거나(null로 끈 것 포함) 파일을 읽을 수 없으면 undefined를 낸다.
+export function withUndoKey(source: string | undefined): string | undefined {
+  let file: unknown = {
+    $schema: 'https://www.schemastore.org/claude-code-keybindings.json',
+    $docs: 'https://code.claude.com/docs/en/keybindings',
+    bindings: [],
+  }
+  if (source !== undefined && source.trim() !== '') {
+    try {
+      file = JSON.parse(source)
+    } catch {
+      return undefined
+    }
+  }
+  if (typeof file !== 'object' || file === null || !Array.isArray((file as { bindings?: unknown }).bindings)) {
+    return undefined
+  }
+  const blocks = (file as { bindings: KeyBlock[] }).bindings
+  const maps = blocks.map(block => (typeof block?.bindings === 'object' && block.bindings !== null ? (block.bindings as Record<string, unknown>) : undefined))
+  if (maps.some(map => map !== undefined && Object.keys(map).some(isUndoKey))) {
+    return undefined
+  }
+  const chat = blocks.findIndex((block, i) => block?.context === 'Chat' && maps[i] !== undefined)
+  if (chat >= 0) {
+    maps[chat]![UNDO_KEY] = UNDO_ACTION
+  } else {
+    blocks.push({ context: 'Chat', bindings: { [UNDO_KEY]: UNDO_ACTION } })
+  }
+  return JSON.stringify(file, null, 2) + '\n'
+}
+
+// 설치한 뒤 처음 연 세션에서 한 번만 한다. 사람이 나중에 그 줄을 지우면 다시 넣지 않는다.
+async function enableUndoKey($: EngineInterface): Promise<void> {
+  if ((await $.store.get(UNDO_DONE)) === true) {
+    return
+  }
+  const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${await $.env.get('HOME')}/.claude`
+  const path = `${dir}/keybindings.json`
+  let source: string | undefined
+  try {
+    source = await $.fs.read(path)
+  } catch {
+    // 없는 파일이면 새로 짓고, 있는데 못 읽었으면 덮어쓰지 않고 다음 세션에 다시 본다.
+    if ((await $.fs.stat(path).catch(() => undefined)) !== undefined) {
+      return
+    }
+  }
+  const updated = withUndoKey(source)
+  if (updated !== undefined) {
+    const { exitCode } = await $.process.run(
+      ['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && cat > "$1.key-assist" && mv "$1.key-assist" "$1"', 'sh', path],
+      { stdin: updated },
+    )
+    if (exitCode !== 0) {
+      return
+    }
+    $.ui.toast('key-assist: Cmd+Z로 입력창을 되돌릴 수 있게 키 설정에 한 줄 더했어요')
+  }
+  await $.store.set(UNDO_DONE, true)
+}
+
 // 모드가 마지막으로 본 입력창 글. 붙여넣기는 prompt.edit를 거치지 않으니, 다음 이벤트의 글이 이것과 다르면 그 사이 무언가 붙은 것이다.
 // 엔진이 보여 주는 글을 알려 주는 이벤트(prompt.edit, prompt.fill, prompt.submit)에서만 나아간다.
 let seen = ''
@@ -99,6 +172,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     seen = (await $.prompt.read()).text
+    void enableUndoKey($).catch(() => {})
     return result
   })
 
