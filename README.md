@@ -32,7 +32,7 @@ Claude Code 프롬프트에 차례로 입력한다.
 | --- | --- | --- |
 | [next-prompts](#next-prompts) | 턴이 끝나면 다음에 보낼 만한 프롬프트를 제안한다 | 입력창 위 |
 | [quick-replies](#quick-replies) | 전역과 로컬(저장소별) 프리셋 문구를 두고, 숫자로 입력창에 넣거나 클릭해 바로 보낸다 | 입력창 위 |
-| [dashboard](#dashboard) | claude-dashboard 상태줄을 권한 모드 줄 밑에 그린다 | 입력창 아래 |
+| [dashboard](#dashboard) | 세션 상태를 두 줄로 권한 모드 줄 밑에 그린다 | 입력창 아래 |
 
 세 모드를 함께 설치하면 입력창 주변이 이렇게 정리된다.
 
@@ -53,8 +53,8 @@ Claude Code 프롬프트에 차례로 입력한다.
  ❯
  ──────────────────────────────────────────────────────────
  ▸▸ bypass permissions on · (shift+tab to cycle) · ← for agents
- ◆ Opus(X) │ ███░░░░░░░ │ 41% │ 409K/1.0M │ $18.17 │ 5시간: 6% │ 7일: 26%
- 📁 claude-code-mods (main) │ 🔑 you@example.com │ ⏱ 52분 │ 🔥 7.8K/min
+ ◆ Opus(X) │ ████░░░░░░ │ 41% │ 409K/1.0M │ $18.17 │ 5시간: 6% │ 7일: 26%
+ 📁 claude-code-mods (main) │ 🔑 you@example.com │ ⏱ 52분 │ 🔥 7.9K/min
 ```
 
 `0`을 누르면 다음 제안과 프리셋을 함께 접어, 한 범위를 한 줄에 제목만으로 보여 준다. 다시 `0`을 누르면 펼친다.
@@ -153,19 +153,39 @@ Claude Code 프롬프트에 차례로 입력한다.
 
 ## dashboard
 
-> 상태줄 자리를 비우고, 같은 대시보드를 권한 모드 줄 밑으로 옮긴다.
+> 상태줄 자리를 비우고, 세션 상태를 권한 모드 줄 밑에 두 줄로 그린다.
 
-설치된 [claude-dashboard](https://github.com/uppinote20/claude-dashboard)를 모드가 직접 실행하고, 그 출력을 색까지 옮겨 그린다. 표시 항목과 테마는 claude-dashboard 설정(`~/.claude/claude-dashboard.local.json`)을 그대로 따른다. 색이 없는 글자는 원래 상태줄처럼 회색으로, 열쇠 아이콘 옆은 세션 id 대신 로그인한 계정의 이메일로 보여 준다.
+모드가 Claude Code에서 세션 값을 직접 읽어 그린다. 다른 프로그램을 설치하거나 실행하지 않는다.
+
+```
+◆ Opus(X) │ ████░░░░░░ │ 41% │ 409K/1.0M │ $18.17 │ 5시간: 6% │ 7일: 26%
+📁 claude-code-mods (main) │ 🔑 you@example.com │ ⏱ 52분 │ 🔥 7.9K/min
+```
+
+| 칸 | 내용 |
+| --- | --- |
+| `◆ Opus(X)` | 모델 계열과 effort 단계(L, M, H, X, Max). effort는 첫 요청이 나간 뒤에 붙는다 |
+| 막대, `41%` | 컨텍스트가 찬 정도. 50%부터 노란색, 80%부터 빨간색 |
+| `409K/1.0M` | 쓴 컨텍스트 토큰과 전체 크기 |
+| `$18.17` | 이 세션의 요금 |
+| `5시간`, `7일` | 사용 한도를 쓴 정도. 응답에 한도 정보가 있을 때만 보인다 |
+| `📁 … (main)` | 프로젝트 폴더와 git 브랜치 |
+| `🔑` | 로그인한 계정의 이메일. API 키로 쓰면 빠진다 |
+| `⏱` | 세션 시간 |
+| `🔥` | 지금 컨텍스트 토큰을 세션 시간(분)으로 나눈 값. 첫 1분에는 빠진다 |
+
+값을 모르는 칸은 빼고 그린다. 색이 없는 글자는 원래 상태줄처럼 회색으로 보인다.
 
 ### 설정
 
-1. claude-dashboard 플러그인을 설치해 둔다. 모드는 가장 새 버전을 찾아 실행한다.
-2. 대시보드가 두 번 보이지 않도록 `~/.claude/settings.json`에서 `statusLine` 항목을 지운다.
+대시보드가 두 번 보이지 않도록, 상태줄을 따로 쓰고 있다면 `~/.claude/settings.json`에서 `statusLine` 항목을 지운다.
 
 ### 알아 둘 점
 
-- 메시지를 보낼 때, 턴이 끝날 때, 30초마다 다시 그린다.
-- 세션 시간과 분당 토큰은 Claude Code가 상태줄에 직접 넘기는 값과 달라서 원래 상태줄과 조금 다를 수 있다.
+- 메시지를 보낼 때, 턴이 끝날 때, effort가 바뀔 때, 30초마다 다시 그린다.
+- effort는 모드가 직접 읽을 수 없어서, 메인 대화의 모델 요청이 나갈 때 실린 값을 받아 둔다. 세션을 연 직후 첫 요청 전에는 모델 이름만 보인다.
+- fast 모드는 모드가 상태를 읽을 수 없어서 표시하지 않는다.
+- 0.1.0까지는 [claude-dashboard](https://github.com/uppinote20/claude-dashboard)를 실행해 그 출력을 옮겨 그렸다. 0.2.0부터는 그 코드를 쓰지 않고, 화면에 보이던 두 줄과 공개된 README 설명만 보고 새로 만들었다. 테마, 표시 항목 같은 claude-dashboard 설정은 더 이상 따르지 않는다.
 - 입력창 아래 안내 줄 맨 앞에는 Claude Code가 권한 모드 표시(`▸▸ bypass permissions on · ` 등)를 그린다. 둘째 줄부터 그 폭만큼 들여 써지므로, 모드는 대화 기록 파일 끝부분에서 마지막 권한 모드를 읽어 그 폭만큼 왼쪽으로 당긴다. shift+tab으로 바꾼 직후에는 다음 메시지를 보낼 때까지 이전 폭으로 그려진다.
 
 | 권한 모드 | 당기는 폭 |
@@ -236,8 +256,8 @@ claude plugin test ./next-prompts
 │       └── band.ts           # next-prompts와 같은 파일
 └── dashboard/
     └── hooks/
-        ├── register.tsx      # claude-dashboard를 실행하고 그 출력을 그림
-        ├── ansi.ts           # 색 코드를 화면 색으로 바꿈
+        ├── register.tsx      # 세션 값을 모으고 입력창 아래에 그림
+        ├── lines.ts          # 세션 값으로 두 줄을 짜는 순수 함수
         └── footer.ts         # 입력창 아래를 나눠 쓰는 틀
 ```
 

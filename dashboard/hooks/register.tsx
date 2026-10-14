@@ -2,62 +2,18 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Segment } from '../types'
-import { parseAnsi } from './ansi'
 import { lastPermissionMode, pullFor, withSection } from './footer'
+import { buildLines } from './lines'
 
 // 바닥 틀 안의 순서. 다른 구역이 생기면 이 숫자로 위아래를 정한다.
 const ORDER = 20
-// 대시보드의 시간, 요금 한도 같은 값이 메시지 없이도 바뀌므로 이 간격으로 다시 그린다.
+// 세션 시간, 요금 한도 같은 값이 메시지 없이도 바뀌므로 이 간격으로 다시 그린다.
 const REFRESH_MS = 30_000
 
 const lines = atom({ plugin: 'dashboard', key: 'lines' } as const, [] as Segment[][])
 const permissionMode = atom({ plugin: 'dashboard', key: 'permissionMode' } as const, null as string | null)
-
-// "1.29.0" 같은 버전 폴더 이름을 큰 순서로 비교한다.
-function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
-    if (diff !== 0) {
-      return diff
-    }
-  }
-  return 0
-}
-
-// claude-code의 모델 id("claude-opus-5-5")를 상태줄이 받는 표시 이름("Opus 5.5")으로 바꾼다.
-function displayName(model: string): string {
-  const match = /^claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(model)
-  if (match === null) {
-    return model
-  }
-  const family = (match[1] ?? '').replace(/^./, c => c.toUpperCase())
-  return match[3] === undefined ? `${family} ${match[2]}` : `${family} ${match[2]}.${match[3]}`
-}
-
-function epochSeconds(iso: string | undefined): number | undefined {
-  if (iso === undefined) {
-    return undefined
-  }
-  const ms = Date.parse(iso)
-  return Number.isNaN(ms) ? undefined : Math.floor(ms / 1000)
-}
-
-// 설치된 claude-dashboard 중 가장 새 버전의 실행 파일을 찾는다.
-async function findDashboard($: EngineInterface, home: string): Promise<string | null> {
-  const base = `${home}/.claude/plugins/cache/claude-dashboard/claude-dashboard`
-  try {
-    const versions = (await $.fs.list(base))
-      .filter(entry => entry.kind === 'dir' && /^\d+(\.\d+)*$/.test(entry.name))
-      .map(entry => entry.name)
-      .sort(compareVersions)
-    const latest = versions.at(-1)
-    return latest === undefined ? null : `${base}/${latest}/dist/index.js`
-  } catch {
-    return null
-  }
-}
+// 모델 요청에 실린 effort. 모드가 effort를 따로 읽을 길이 없어서, 메인 대화의 요청이 나갈 때 받아 둔다. 첫 요청 전에는 null.
+const effort = atom({ plugin: 'dashboard', key: 'effort' } as const, null as string | null)
 
 // 이 세션의 기록 파일 끝부분을 읽는다. 기록은 세션을 연 폴더 이름 아래 저장되는데, 현재 폴더는 세션 중에 바뀔 수 있다.
 // 프로젝트 루트, 현재 폴더 순서로 읽어 보고, 둘 다 없으면 기록 폴더 전체에서 세션 id로 찾는다.
@@ -103,15 +59,14 @@ async function readEmail($: EngineInterface, home: string): Promise<string | nul
   }
 }
 
-// claude-dashboard는 열쇠 아이콘 옆에 세션 id 앞 8자리를 그린다. 그 자리를 로그인 이메일로 바꾼다.
-function withEmail(rows: Segment[][], sessionId: string, email: string | null): Segment[][] {
-  const shortId = sessionId.slice(0, 8)
-  if (email === null || shortId === '') {
-    return rows
+// 지금 폴더의 git 브랜치. git 저장소가 아니거나 브랜치가 없으면(분리된 HEAD) null.
+async function readBranch($: EngineInterface): Promise<string | null> {
+  try {
+    const { exitCode, stdout } = await $.process.run(['git', 'branch', '--show-current'])
+    return exitCode === 0 && stdout.trim() !== '' ? stdout.trim() : null
+  } catch {
+    return null
   }
-  return rows.map(row =>
-    row.map(seg => (seg.text.includes('🔑') ? { ...seg, text: seg.text.replace(shortId, email) } : seg)),
-  )
 }
 
 // 메시지 전송과 턴 마무리를 막지 않도록, 다시 그리기에서 난 오류는 여기서 삼킨다.
@@ -123,70 +78,31 @@ async function refresh($: EngineInterface): Promise<void> {
   }
 }
 
-// Claude Code가 상태줄 명령에 넘기는 입력을 모드가 아는 값으로 다시 만들어 claude-dashboard를 실행한다.
+// 세션 값을 모아 두 줄을 다시 짠다.
 async function render($: EngineInterface): Promise<void> {
   const home = (await $.env.get('HOME')) ?? ''
-  const script = await findDashboard($, home)
-  if (script === null) {
-    return
-  }
-
-  const [usage, model, cwd, root, id, version, now] = await Promise.all([
+  const [usage, model, root, now, branch, email, transcript] = await Promise.all([
     $.session.usage(),
     $.session.model(),
-    $.session.cwd(),
     $.session.root(),
-    $.session.id(),
-    $.session.version(),
     $.clock.now(),
+    readBranch($),
+    readEmail($, home),
+    readTranscript($),
   ])
-  const transcript = await readTranscript($)
-  const transcriptPath = transcript?.path ?? null
   const mode = transcript === null ? null : lastPermissionMode(transcript.text)
-
-  const limit = (kind: string) => {
-    const found = usage.rateLimits.find(r => r.kind === kind)
-    return found === undefined
-      ? undefined
-      : { used_percentage: found.percentUsed, resets_at: epochSeconds(found.resetsAt) }
-  }
-  const tokens = usage.context.tokens ?? 0
-  const input = {
-    model: { id: model, display_name: displayName(model) },
-    workspace: { current_dir: cwd, project_dir: root },
-    context_window: {
-      total_input_tokens: tokens,
-      total_output_tokens: 0,
-      context_window_size: usage.context.window,
-      used_percentage: usage.context.percent ?? null,
-      remaining_percentage: usage.context.percent === undefined ? null : 100 - usage.context.percent,
-      current_usage: {
-        input_tokens: tokens,
-        output_tokens: 0,
-        cache_creation_input_tokens: 0,
-        cache_read_input_tokens: 0,
-      },
-    },
-    cost: { total_cost_usd: usage.cost?.usd ?? 0, total_duration_ms: now - usage.startedAt },
-    rate_limits: { five_hour: limit('five_hour'), seven_day: limit('seven_day') },
-    session_id: id,
-    transcript_path: transcriptPath ?? undefined,
-    version: version.version,
-    permission_mode: mode ?? undefined,
-  }
-
-  try {
-    const { exitCode, stdout } = await $.process.run(['node', script], {
-      stdin: JSON.stringify(input),
-      timeoutMs: 10_000,
-    })
-    if (exitCode === 0) {
-      const parsed = withEmail(parseAnsi(stdout), id, await readEmail($, home))
-      await update($, lines, () => parsed)
-    }
-  } catch {
-    // 실행에 실패하면 이전 화면을 그대로 둔다.
-  }
+  const rows = buildLines({
+    model,
+    effort: await read($, effort),
+    context: usage.context,
+    costUsd: usage.cost?.usd ?? null,
+    rateLimits: usage.rateLimits,
+    folder: root.split('/').filter(Boolean).at(-1) ?? root,
+    branch,
+    email,
+    elapsedMs: now - usage.startedAt,
+  })
+  await update($, lines, () => rows)
   await update($, permissionMode, () => mode)
 }
 
@@ -203,6 +119,15 @@ export const register: Register = on => {
     const result = await next(e)
     await refresh($)
     return result
+  })
+  // 요청은 그대로 흘려보내고, 메인 대화의 effort만 받아 둔다.
+  on('turn.step', async function* ($, e, next) {
+    if (e.agentId === undefined && typeof e.effort === 'string' && e.effort !== (await read($, effort))) {
+      const level = e.effort
+      await update($, effort, () => level)
+      void refresh($)
+    }
+    return yield* next(e)
   })
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)

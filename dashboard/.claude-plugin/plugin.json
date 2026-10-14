@@ -1,7 +1,7 @@
 {
   "name": "dashboard",
-  "version": "0.1.0",
-  "description": "claude-dashboard 상태줄을 입력창 아래 권한 모드 줄 밑에 그린다",
+  "version": "0.2.0",
+  "description": "모델, 컨텍스트, 요금, 사용 한도, 브랜치를 입력창 아래 권한 모드 줄 밑에 두 줄로 그린다",
   "author": {
     "name": "oobg"
   },
