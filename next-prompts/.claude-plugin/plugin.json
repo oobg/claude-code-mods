@@ -1,6 +1,6 @@
 {
   "name": "next-prompts",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "턴이 끝나면 다음에 보낼 만한 프롬프트 2~3개를 입력창 위에 제안한다. 숫자로 골라 입력창에 초안으로 넣는다",
   "author": { "name": "oobg" },
   "license": "MIT",

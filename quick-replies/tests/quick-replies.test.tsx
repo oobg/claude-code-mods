@@ -31,7 +31,7 @@ function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}, drawB
 }
 
 describe('quick-replies', () => {
-  test('처음에는 전역 기본 프리셋 두 개에 4, 5를 붙이고, 누르면 그 문구를 사용자 말로 보낸다', async ($, on) => {
+  test('제안 줄이 없으면 전역 기본 프리셋 두 개에 1, 2를 붙이고, 누르면 그 문구를 사용자 말로 보낸다', async ($, on) => {
     inRepo(on, '/repo/one')
     let sent: { text: string; asUser?: true }[] = []
     on('prompt.submit', (_$, e) => {
@@ -41,8 +41,8 @@ describe('quick-replies', () => {
 
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'quick-replies', surface, ...BAND })
-      expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('4')
-      expect((await ui.find({ key: 'send:default-1' }))?.props?.hotkey).toBe('5')
+      expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('1')
+      expect((await ui.find({ key: 'send:default-1' }))?.props?.hotkey).toBe('2')
       sent = []
       await ui.press({ key: 'send:default-1' })
       expect(sent).toEqual([{ text: '맞아 그렇게 진행해', asUser: true }])
@@ -50,41 +50,45 @@ describe('quick-replies', () => {
     }
   })
 
-  test('편집에서 전역과 프로젝트 프리셋을 추가, 수정, 삭제하고 서로 옮긴다', async ($, on) => {
+  test('편집 화면은 키 하나로 추가, 고르기, 수정, 삭제, 옮기기, 순서 바꾸기를 한다', async ($, on) => {
     inRepo(on, '/repo/one')
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
     await ui.press({ key: 'edit' })
+    expect((await ui.find({ key: 'add-global' }))?.props?.hotkey).toBe('a')
+    expect((await ui.find({ key: 'select:default-0' }))?.props?.hotkey).toBe('1')
 
-    await ui.input({ key: 'add:global', text: '커밋해줘' })
-    await ui.input({ key: 'add:project', text: '배포 확인해줘' })
-    await ui.press({ key: 'rename:default-0' })
-    await ui.input({ key: 'rename:default-0', text: '어디까지 했어?' })
-    await ui.press({ key: 'delete:default-1' })
-    await ui.press({ key: 'move:default-0' })
+    // a: 전역에 추가, p: 이 프로젝트에 추가
+    await ui.press({ key: 'add-global' })
+    await ui.input({ key: 'input', text: '커밋해줘' })
+    await ui.press({ key: 'add-project' })
+    await ui.input({ key: 'input', text: '/ux-writing 문구 다듬어줘' })
+
+    // 1로 고르고 e로 고쳐 쓰기
+    await ui.press({ key: 'select:default-0' })
+    await ui.press({ key: 'act-edit' })
+    expect((await ui.find({ key: 'input' }))?.props?.value).toBe('지금 진행상황')
+    await ui.input({ key: 'input', text: '어디까지 했어?' })
+
+    // 2를 골라 d로 지우기
+    await ui.press({ key: 'select:default-1' })
+    await ui.press({ key: 'act-delete' })
+    expect(await ui.find({ key: 'select:default-1' })).toBeUndefined()
+
+    // 1을 골라 j로 아래로, m으로 이 프로젝트로
+    await ui.press({ key: 'select:default-0' })
+    await ui.press({ key: 'act-down' })
+    await ui.press({ key: 'act-move' })
+
+    // q: 완료. 전역: 커밋해줘 / 이 프로젝트: /ux-writing…, 어디까지 했어?
     await ui.press({ key: 'done' })
-
-    // 전역: 커밋해줘(4) / 이 프로젝트: 배포 확인해줘(5), 어디까지 했어?(6)
-    expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('6')
-    expect(await ui.find({ key: 'send:default-1' })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: '│ 이 프로젝트' })).toBeDefined()
-    expect((await ui.find({ type: 'Button', text: '커밋해줘' }))?.props?.hotkey).toBe('4')
-    expect((await ui.find({ type: 'Button', text: '배포 확인해줘' }))?.props?.hotkey).toBe('5')
+    expect((await ui.find({ type: 'Button', text: '커밋해줘' }))?.props?.hotkey).toBe('1')
+    expect((await ui.find({ type: 'Button', text: '/ux-writing 문구 다듬어줘' }))?.props?.hotkey).toBe('2')
+    expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('3')
+    expect(await ui.find({ type: 'Text', text: '이 프로젝트' })).toBeDefined()
     await ui.unmount()
   })
 
-  test('프로젝트 프리셋은 그 저장소에만, 전역 프리셋은 모든 저장소에 보인다', async ($, on) => {
-    inRepo(on, '/repo/two', {
-      global: [{ id: 'g', text: '전역 문구' }],
-      'repo:/repo/one': [{ id: 'p', text: '저장소 하나 전용' }],
-    })
-    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
-    expect(await ui.find({ type: 'Button', text: '전역 문구' })).toBeDefined()
-    expect(await ui.find({ type: 'Button', text: '저장소 하나 전용' })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: '│ 이 프로젝트' })).toBeUndefined()
-    await ui.unmount()
-  })
-
-  test('다른 모드가 띠 틀에 넣은 줄 아래에 프리셋 줄을 끼워 넣는다', async ($, on) => {
+  test('편집 중에는 띠를 혼자 쓰고, 다른 모드의 줄은 넣지 않는다', async ($, on) => {
     inRepo(on, '/repo/one', {}, false)
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Box, Text } = $.ui.resolve(e)
@@ -97,9 +101,44 @@ describe('quick-replies', () => {
       )
     })
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    await ui.press({ key: 'edit' })
+    expect(await ui.find({ type: 'Text', text: '다음 제안 줄' })).toBeUndefined()
+    expect(await ui.find({ key: 'add-global' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('프로젝트 프리셋은 그 저장소에만, 전역 프리셋은 모든 저장소에 보인다', async ($, on) => {
+    inRepo(on, '/repo/two', {
+      global: [{ id: 'g', text: '전역 문구' }],
+      'repo:/repo/one': [{ id: 'p', text: '저장소 하나 전용' }],
+    })
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect(await ui.find({ type: 'Button', text: '전역 문구' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: '저장소 하나 전용' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: '이 프로젝트' })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('다른 모드가 띠 틀에 넣은 줄 아래에 프리셋 줄을 끼워 넣는다', async ($, on) => {
+    inRepo(on, '/repo/one', {}, false)
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box, Button, Text } = $.ui.resolve(e)
+      return (
+        <Box key="oobg-band" flexDirection="column">
+          <Box key="oobg-band:10:next-prompts">
+            <Text>다음 제안 줄</Text>
+            <Button key="pick:1" label="가" hotkey="1" plain onPress={() => {}} />
+            <Button key="pick:2" label="나" hotkey="2" plain onPress={() => {}} />
+          </Box>
+        </Box>
+      )
+    })
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
     expect(await ui.find({ type: 'Text', text: '다음 제안 줄' })).toBeDefined()
     expect(await ui.find({ key: 'oobg-band:10:next-prompts' })).toBeDefined()
     expect(await ui.find({ key: 'oobg-band:20:quick-replies' })).toBeDefined()
+    // 위 줄의 제안 1~2 다음부터 프리셋 번호가 이어진다.
+    expect((await ui.find({ key: 'send:default-0' }))?.props?.hotkey).toBe('3')
     await ui.unmount()
   })
 

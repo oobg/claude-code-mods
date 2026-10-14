@@ -1,16 +1,17 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Mode, Reply, Scope } from '../types'
-import { withBandSection } from './band'
+import type { EditInput, Mode, Reply, Scope } from '../types'
+import { exclusiveBand, withBandSection } from './band'
 
 export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞아 그렇게 진행해']
 
 // 띠 안의 순서. next-prompts의 다음 제안(10) 아래에 온다.
 const ORDER = 20
-// 숫자 단축키는 4부터 9까지 붙인다. 1~3은 다음 제안, 0은 제안 닫기가 쓴다.
-const FIRST_HOTKEY = 4
-const LAST_HOTKEY = 9
+// 줄 제목("프리셋", "이 프로젝트") 칸의 폭. 두 줄의 버튼이 같은 열에서 시작한다.
+const LABEL_WIDTH = 10
+// 스킬, 슬래시 명령 프리셋의 명령 부분 색. 대시보드의 모델 이름과 같은 파스텔 하늘색이다.
+const ACCENT = 'ansi256(117)'
 
 const repo = atom({ plugin: 'quick-replies', key: 'repo' } as const, null)
 const globalReplies = atom({ plugin: 'quick-replies', key: 'globalReplies' } as const, null)
@@ -88,6 +89,73 @@ async function send($: EngineInterface, text: string): Promise<void> {
 const without = (list: Reply[], id: string) => list.filter(r => r.id !== id)
 const renamed = (list: Reply[], id: string, text: string) => list.map(r => (r.id === id ? { ...r, text } : r))
 
+// 띠의 requestId. 편집 화면을 열 때 키보드 포커스를 띠로 옮기는 데 쓴다(그릴 때마다 갱신).
+let bandId: string | null = null
+
+// 편집 화면을 열고 키보드 포커스를 띠로 옮긴다. 그래야 글자 키가 입력창 대신 편집 화면으로 간다.
+async function openEditor($: EngineInterface): Promise<void> {
+  await update($, mode, () => ({ kind: 'edit', selected: null, input: null }) as Mode)
+  if (bandId !== null) {
+    await $.ui.focus({ requestId: bandId, key: 'done' }).catch(() => {})
+  }
+}
+
+// 입력칸에서 Enter를 누르면 추가하거나 고친다. 빈 문구는 무시한다.
+async function submitInput($: EngineInterface, editing: EditInput, text: string): Promise<void> {
+  if (text !== '') {
+    if (editing.kind === 'add') {
+      const reply = { id: crypto.randomUUID(), text }
+      await save($, p =>
+        editing.scope === 'global' ? { ...p, global: [...p.global, reply] } : { ...p, project: [...p.project, reply] },
+      )
+    } else {
+      await save($, p => ({
+        ...p,
+        global: renamed(p.global, editing.id, text),
+        project: renamed(p.project, editing.id, text),
+      }))
+    }
+  }
+  await update($, mode, m => (m.kind === 'edit' ? { ...m, input: null } : m))
+  if (bandId !== null) {
+    await $.ui.focus({ requestId: bandId, key: 'done' }).catch(() => {})
+  }
+}
+
+async function removePreset($: EngineInterface, id: string): Promise<void> {
+  await save($, p => ({ ...p, global: without(p.global, id), project: without(p.project, id) }))
+  await update($, mode, m => (m.kind === 'edit' ? { ...m, selected: null } : m))
+}
+
+// 전역과 이 프로젝트 사이로 옮긴다. 옮긴 프리셋은 그쪽 목록 맨 뒤에 붙는다.
+async function movePreset($: EngineInterface, id: string): Promise<void> {
+  await save($, p => {
+    const inGlobal = p.global.find(r => r.id === id)
+    if (inGlobal !== undefined) {
+      return { ...p, global: without(p.global, id), project: [...p.project, inGlobal] }
+    }
+    const inProject = p.project.find(r => r.id === id)
+    return inProject === undefined ? p : { ...p, project: without(p.project, id), global: [...p.global, inProject] }
+  })
+}
+
+// 같은 범위 안에서 한 칸 위(-1)나 아래(+1)로 옮긴다.
+function shifted(list: Reply[], id: string, by: number): Reply[] {
+  const from = list.findIndex(r => r.id === id)
+  const to = from + by
+  if (from < 0 || to < 0 || to >= list.length) {
+    return list
+  }
+  const next = [...list]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved as Reply)
+  return next
+}
+
+async function reorder($: EngineInterface, id: string, by: number): Promise<void> {
+  await save($, p => ({ ...p, global: shifted(p.global, id, by), project: shifted(p.project, id, by) }))
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -100,128 +168,157 @@ export const register: Register = on => {
     if (e.props.hasSurvey || (e.surface !== 'terminal' && e.surface !== 'desktop')) {
       return next(e)
     }
-    const below = await next(e)
+    bandId = e.requestId
     const presets = await current($)
     const shown = await read($, mode)
     const { Box, Button, Input, Text } = $.ui.resolve(e)
-    const setMode = (m: Mode) => update($, mode, () => m)
 
     if (shown.kind === 'view') {
-      // 전역 다음에 프로젝트 순서로 4~9를 붙인다. 그 뒤의 프리셋은 클릭으로만 고른다.
-      const chip = (reply: Reply, index: number) => {
-        const hotkey = FIRST_HOTKEY + index
+      const below = await next(e)
+      // 숫자 단축키는 띠 틀이 위에서부터 다시 매긴다. 여기서는 순서만 정해 두고 1부터 붙인다.
+      let hotkey = 0
+      const chip = (reply: Reply) => {
+        hotkey += 1
+        const command = parseCommand(reply.text)
         return (
           <Button
             key={`send:${reply.id}`}
             label={reply.text}
             plain
-            {...(hotkey <= LAST_HOTKEY ? { hotkey: String(hotkey) } : {})}
+            {...(hotkey <= 9 ? { hotkey: String(hotkey) } : {})}
             onPress={() => {
               void send($, reply.text)
             }}
-          />
+          >
+            {command === null ? (
+              reply.text
+            ) : (
+              // 스킬이나 슬래시 명령은 명령 부분만 하늘색으로 칠해 일반 문장과 구분한다.
+              <Text>
+                <Text color={ACCENT}>/{command.command}</Text>
+                {command.args === '' ? '' : ` ${command.args}`}
+              </Text>
+            )}
+          </Button>
         )
       }
-      const row = (
-        <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-          <Text dimColor>프리셋</Text>
-          {presets.global.map((reply, i) => chip(reply, i))}
-          {presets.project.length > 0 && <Text dimColor>│ 이 프로젝트</Text>}
-          {presets.project.map((reply, i) => chip(reply, presets.global.length + i))}
-          <Button
-            key="edit"
-            label="편집"
-            plain
-            dimColor
-            onPress={() => setMode({ kind: 'edit', editingId: null })}
-          >
-            ✎ 편집
-          </Button>
+      // 전역과 이 프로젝트를 줄을 나눠 보여 준다. 제목 칸 폭을 맞춰 버튼이 같은 열에서 시작하게 한다.
+      const rows = (
+        <Box flexDirection="column">
+          <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+            <Box width={LABEL_WIDTH}>
+              <Text dimColor>프리셋</Text>
+            </Box>
+            {presets.global.map(chip)}
+            <Button key="edit" label="편집" plain dimColor onPress={() => openEditor($)}>
+              ✎ 편집
+            </Button>
+          </Box>
+          {presets.project.length > 0 && (
+            <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+              <Box width={LABEL_WIDTH}>
+                <Text dimColor>이 프로젝트</Text>
+              </Box>
+              {presets.project.map(chip)}
+            </Box>
+          )}
         </Box>
       )
-      return withBandSection(below, 'quick-replies', ORDER, row)
+      return withBandSection(below, 'quick-replies', ORDER, rows)
     }
 
-    // 편집 화면: 범위마다 목록과 추가 입력칸을 두고, 프리셋을 다른 범위로 옮길 수 있다.
-    const editRows = (scope: Scope, list: Reply[]) =>
-      list.map(reply =>
-        shown.editingId === reply.id ? (
+    // 편집 화면: 띠를 혼자 쓰고, 키 하나로 동작한다.
+    //   숫자 1~9: 프리셋 고르기 / a: 전역에 추가 / p: 이 프로젝트에 추가 / q: 완료
+    //   고른 프리셋에: e 수정 / d 삭제 / m 범위 바꾸기 / k 위로 / j 아래로
+    const all = [
+      ...presets.global.map(reply => ({ reply, scope: 'global' as Scope })),
+      ...presets.project.map(reply => ({ reply, scope: 'project' as Scope })),
+    ]
+    const selected = all.find(item => item.reply.id === shown.selected) ?? null
+    const setEdit = (patch: Partial<Extract<Mode, { kind: 'edit' }>>) =>
+      update($, mode, m => (m.kind === 'edit' ? { ...m, ...patch } : m))
+    const projectName = presets.root.split('/').filter(Boolean).at(-1) ?? presets.root
+
+    const item = (entry: { reply: Reply; scope: Scope }, index: number) => {
+      const isSelected = entry.reply.id === shown.selected
+      return (
+        <Box key={`row:${entry.reply.id}`} flexDirection="row">
+          <Text color={ACCENT}>{isSelected ? '▸ ' : '  '}</Text>
+          <Button
+            key={`select:${entry.reply.id}`}
+            label={entry.reply.text}
+            plain
+            {...(index < 9 ? { hotkey: String(index + 1) } : {})}
+            onPress={() => setEdit({ selected: entry.reply.id, input: null })}
+          />
+        </Box>
+      )
+    }
+    const group = (title: string, scope: Scope) => {
+      const entries = all.filter(entry => entry.scope === scope)
+      return (
+        <Box flexDirection="column">
+          <Text dimColor>{title}</Text>
+          {entries.length === 0 && <Text dimColor>  (비어 있음)</Text>}
+          {entries.map(entry => item(entry, all.indexOf(entry)))}
+        </Box>
+      )
+    }
+    const action = (key: string, hotkey: string, label: string, onPress: () => unknown) => (
+      <Button key={key} label={label} hotkey={hotkey} plain onPress={() => void onPress()} />
+    )
+
+    let inputRow = null
+    if (shown.input !== null) {
+      const editing = shown.input
+      const original = editing.kind === 'rename' ? all.find(x => x.reply.id === editing.id)?.reply.text : undefined
+      const title =
+        editing.kind === 'rename' ? '수정' : editing.scope === 'global' ? '전역에 추가' : '이 프로젝트에 추가'
+      inputRow = (
+        <Box flexDirection="row" columnGap={1}>
+          <Text color={ACCENT}>{title}</Text>
           <Input
-            key={`rename:${reply.id}`}
-            value={reply.text}
+            key="input"
+            {...(original === undefined ? {} : { value: original })}
+            placeholder="문구, 또는 /스킬 이름과 문구"
             submitLabel="저장"
             autoFocus
             onSubmit={(value: string) => {
-              const text = value.trim()
-              void (async () => {
-                if (text !== '') {
-                  await save($, p => ({
-                    ...p,
-                    global: renamed(p.global, reply.id, text),
-                    project: renamed(p.project, reply.id, text),
-                  }))
-                }
-                await setMode({ kind: 'edit', editingId: null })
-              })()
+              void submitInput($, editing, value.trim())
             }}
           />
-        ) : (
-          <Box key={`row:${reply.id}`} flexDirection="row" gap={1}>
-            <Text>{reply.text}</Text>
-            <Button key={`rename:${reply.id}`} label="수정" onPress={() => setMode({ kind: 'edit', editingId: reply.id })} />
-            <Button
-              key={`delete:${reply.id}`}
-              label="삭제"
-              onPress={() =>
-                save($, p => ({ ...p, global: without(p.global, reply.id), project: without(p.project, reply.id) }))
-              }
-            />
-            <Button
-              key={`move:${reply.id}`}
-              label={scope === 'global' ? '프로젝트로' : '전역으로'}
-              onPress={() =>
-                save($, p =>
-                  scope === 'global'
-                    ? { ...p, global: without(p.global, reply.id), project: [...p.project, reply] }
-                    : { ...p, project: without(p.project, reply.id), global: [...p.global, reply] },
-                )
-              }
-            />
-          </Box>
-        ),
+          <Button key="cancel" label="취소" plain dimColor onPress={() => setEdit({ input: null })} />
+        </Box>
       )
-    const addInput = (scope: Scope) => (
-      <Input
-        key={`add:${scope}`}
-        placeholder={scope === 'global' ? '새 전역 프리셋' : '새 프로젝트 프리셋'}
-        submitLabel="추가"
-        onSubmit={(value: string) => {
-          const text = value.trim()
-          if (text === '') {
-            return
-          }
-          const reply = { id: crypto.randomUUID(), text }
-          void save($, p =>
-            scope === 'global' ? { ...p, global: [...p.global, reply] } : { ...p, project: [...p.project, reply] },
-          )
-        }}
-      />
-    )
-    const projectName = presets.root.split('/').filter(Boolean).at(-1) ?? presets.root
+    }
 
     const editor = (
       <Box flexDirection="column">
-        <Text dimColor>전역 프리셋 (모든 저장소)</Text>
-        {editRows('global', presets.global)}
-        {addInput('global')}
-        <Text dimColor>이 프로젝트 프리셋 ({projectName})</Text>
-        {editRows('project', presets.project)}
-        {addInput('project')}
-        <Box flexDirection="row">
-          <Button key="done" label="완료" onPress={() => setMode({ kind: 'view' })} />
+        <Box flexDirection="row" columnGap={2}>
+          <Text bold>프리셋 편집</Text>
+          {action('add-global', 'a', '전역에 추가', () => setEdit({ input: { kind: 'add', scope: 'global' } }))}
+          {action('add-project', 'p', '이 프로젝트에 추가', () => setEdit({ input: { kind: 'add', scope: 'project' } }))}
+          {action('done', 'q', '완료', () => update($, mode, () => ({ kind: 'view' }) as Mode))}
         </Box>
+        {group('전역 (모든 저장소)', 'global')}
+        {group(`이 프로젝트 (${projectName})`, 'project')}
+        {inputRow}
+        {selected === null ? (
+          <Text dimColor>숫자를 눌러 프리셋을 고르면 수정, 삭제, 옮기기를 할 수 있어요.</Text>
+        ) : (
+          <Box flexDirection="row" columnGap={2}>
+            <Text dimColor>고른 프리셋</Text>
+            {action('act-edit', 'e', '수정', () => setEdit({ input: { kind: 'rename', id: selected.reply.id } }))}
+            {action('act-delete', 'd', '삭제', () => removePreset($, selected.reply.id))}
+            {action('act-move', 'm', selected.scope === 'global' ? '이 프로젝트로' : '전역으로', () =>
+              movePreset($, selected.reply.id),
+            )}
+            {action('act-up', 'k', '위로', () => reorder($, selected.reply.id, -1))}
+            {action('act-down', 'j', '아래로', () => reorder($, selected.reply.id, 1))}
+          </Box>
+        )}
       </Box>
     )
-    return withBandSection(below, 'quick-replies', ORDER, editor)
+    return exclusiveBand(editor)
   })
 }
