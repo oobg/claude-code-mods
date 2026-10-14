@@ -13,6 +13,11 @@ const BAND = {
   },
 } as const
 
+const HINT = {
+  component: 'PromptHint',
+  props: { isDraft: false, isWorking: false, hint: '? for shortcuts' },
+} as const
+
 const SURFACES = ['terminal', 'desktop'] as const
 
 // 세션이 `cwd`에서 돈다. git은 없다고 답하므로 cwd가 곧 저장소다.
@@ -20,6 +25,15 @@ function inRepo(on: On, cwd: string, stored: Record<string, unknown> = {}) {
   mock.store(on, stored)
   on('session.cwd', () => ({ value: cwd }))
   on('process.run', () => ({ deny: 'not a git repository' }))
+  // 모드가 비켜 줄 때 엔진이 그리는 자리.
+  on('ui.render', { component: 'PromptHint' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine-hint</Text>
+  })
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine-band</Text>
+  })
 }
 
 const SAVED = [
@@ -37,7 +51,8 @@ describe('quick-replies', () => {
     })
 
     for (const surface of SURFACES) {
-      const ui = await $.ui.mount({ plugin: 'quick-replies', surface, ...BAND })
+      const ui = await $.ui.mount({ plugin: 'quick-replies', surface, ...HINT })
+      expect(await ui.find({ type: 'Text', text: '? for shortcuts' })).toBeDefined()
       for (const text of ['지금 진행상황', '맞아 그렇게 진행해']) {
         sent = []
         const button = await ui.find({ type: 'Button', text })
@@ -51,8 +66,10 @@ describe('quick-replies', () => {
 
   test('편집에서 추가·수정·삭제하면 이 저장소 목록에 남는다', async ($, on) => {
     inRepo(on, '/repo/one', { 'repo:/repo/one': SAVED })
+    const hint = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...HINT })
+    await hint.press({ key: 'edit' })
+    expect(await hint.find({ key: 'edit' })).toBeUndefined()
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
-    await ui.press({ key: 'edit' })
 
     await ui.input({ key: 'add', text: '테스트 돌려줘' })
     expect(await ui.find({ type: 'Text', text: '테스트 돌려줘' })).toBeDefined()
@@ -65,25 +82,26 @@ describe('quick-replies', () => {
     expect(await ui.find({ type: 'Text', text: '맞아 그렇게 진행해' })).toBeUndefined()
 
     await ui.press({ key: 'done' })
-    expect(await ui.find({ type: 'Button', text: '어디까지 했어?' })).toBeDefined()
-    expect(await ui.find({ type: 'Button', text: '테스트 돌려줘' })).toBeDefined()
-    expect(await ui.find({ type: 'Button', text: '맞아 그렇게 진행해' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: 'engine-band' })).toBeDefined()
+    expect(await hint.find({ type: 'Button', text: '어디까지 했어?' })).toBeDefined()
+    expect(await hint.find({ type: 'Button', text: '테스트 돌려줘' })).toBeDefined()
+    expect(await hint.find({ type: 'Button', text: '맞아 그렇게 진행해' })).toBeUndefined()
     await ui.unmount()
+    await hint.unmount()
   })
 
   test('다른 저장소의 목록은 섞이지 않는다', async ($, on) => {
     inRepo(on, '/repo/two', { 'repo:/repo/one': [{ id: 'x', text: '저장소 하나 전용' }] })
-    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...HINT })
     expect(await ui.find({ type: 'Button', text: '저장소 하나 전용' })).toBeUndefined()
     expect(await ui.find({ type: 'Button', text: '지금 진행상황' })).toBeDefined()
     await ui.unmount()
   })
 
-  test('설문이 띠를 차지하면 비켜 준다', async ($, on) => {
-    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
-      const { Text } = $.ui.resolve(e)
-      return <Text>survey</Text>
-    })
+  test('편집 중에도 설문이 띠를 차지하면 비켜 준다', async ($, on) => {
+    inRepo(on, '/repo/one')
+    const hint = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...HINT })
+    await hint.press({ key: 'edit' })
 
     const ui = await $.ui.mount({
       plugin: 'quick-replies',
@@ -91,7 +109,9 @@ describe('quick-replies', () => {
       ...BAND,
       props: { ...BAND.props, hasSurvey: true },
     })
-    expect(await ui.find({ key: 'edit' })).toBeUndefined()
+    expect(await ui.find({ key: 'add' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: 'engine-band' })).toBeDefined()
     await ui.unmount()
+    await hint.unmount()
   })
 })

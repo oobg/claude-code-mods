@@ -57,6 +57,41 @@ export const register: Register = on => {
     return result
   })
 
+  // 입력창 아래 안내 줄 자리에 버튼을 놓고, 엔진의 안내 문구는 그 뒤에 이어 붙인다.
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' && e.surface !== 'desktop') {
+      return next(e)
+    }
+    const shown = await read($, mode)
+    if (shown.kind === 'edit') {
+      return next(e)
+    }
+
+    const { list } = await current($)
+    const { Box, Button, Text } = $.ui.resolve(e)
+
+    return (
+      <Box flexDirection="row" flexWrap="wrap" gap={1}>
+        {list.map(reply => (
+          <Button
+            key={`send:${reply.id}`}
+            label={reply.text}
+            onPress={() => {
+              void $.prompt.submit({ text: reply.text, asUser: true })
+            }}
+          />
+        ))}
+        <Button
+          key="edit"
+          label="편집"
+          dimColor
+          onPress={() => update($, mode, () => ({ kind: 'edit', editingId: null }) as Mode)}
+        />
+        {e.props.hint !== '' && <Text dimColor>{e.props.hint}</Text>}
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // 띠는 터미널과 데스크톱에만 그려지고, 편집에 쓰는 Input도 그 둘에만 있다.
     if (e.props.hasSurvey || (e.surface !== 'terminal' && e.surface !== 'desktop')) {
@@ -68,21 +103,9 @@ export const register: Register = on => {
     const { Box, Button, Input, Text } = $.ui.resolve(e)
     const setMode = (m: Mode) => update($, mode, () => m)
 
+    // 평소에는 입력창 아래 줄이 버튼을 그리고, 띠는 편집할 때만 연다.
     if (shown.kind === 'view') {
-      return (
-        <Box flexDirection="row" flexWrap="wrap" gap={1}>
-          {list.map(reply => (
-            <Button
-              key={`send:${reply.id}`}
-              label={reply.text}
-              onPress={() => {
-                void $.prompt.submit({ text: reply.text, asUser: true })
-              }}
-            />
-          ))}
-          <Button key="edit" label="편집" dimColor onPress={() => setMode({ kind: 'edit', editingId: null })} />
-        </Box>
-      )
+      return next(e)
     }
 
     return (
