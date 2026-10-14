@@ -65,23 +65,28 @@ export const register: Register = on => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const clear = () => update($, suggestions, () => [])
 
+    // 제목 줄 다음에 제안을 한 줄에 하나씩 둔다.
     // 입력창이 비어 있을 때 숫자 1~3은 그 제안을 입력창에 초안으로 넣는다(보내지는 않는다). 0은 닫는다.
     const row = (
-      <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-        <Text dimColor>다음 제안</Text>
+      <Box flexDirection="column">
+        <Box flexDirection="row" columnGap={2}>
+          <Text dimColor>다음 제안</Text>
+          <Button key="dismiss" label="닫기" hotkey="0" plain dimColor role="dismiss" onPress={clear} />
+        </Box>
         {list.map((text, i) => (
-          <Button
-            key={`pick:${i + 1}`}
-            label={text}
-            hotkey={String(i + 1)}
-            plain
-            onPress={async () => {
-              await $.prompt.fill({ text })
-              await clear()
-            }}
-          />
+          <Box key={`line:${i + 1}`} paddingLeft={2}>
+            <Button
+              key={`pick:${i + 1}`}
+              label={text}
+              hotkey={String(i + 1)}
+              plain
+              onPress={async () => {
+                await $.prompt.fill({ text })
+                await clear()
+              }}
+            />
+          </Box>
         ))}
-        <Button key="dismiss" label="닫기" hotkey="0" plain dimColor role="dismiss" onPress={clear} />
       </Box>
     )
     return withBandSection(below, 'next-prompts', ORDER, row)

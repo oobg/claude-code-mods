@@ -2,8 +2,8 @@
 
 // 짧은 답 뒤에는 제안할 거리가 적고 호출 비용만 든다.
 export const MIN_ANSWER_CHARS = 120
-// 띠 한 줄에 들어가도록 제안 하나의 길이를 자른다.
-const MAX_SUGGESTION_CHARS = 40
+// 제안은 한 줄에 하나씩 놓이므로 그 줄 안에 들어갈 길이까지 받는다.
+const MAX_SUGGESTION_CHARS = 60
 const MAX_SUGGESTIONS = 3
 // 모델에 넘기는 대화는 끝부분만 쓴다.
 const MAX_CONTEXT_CHARS = 4000
