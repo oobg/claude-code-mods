@@ -88,6 +88,73 @@ describe('quick-replies', () => {
     await ui.unmount()
   })
 
+  test('0으로 접으면 범위마다 한 줄에 제목만 잇고, 다시 누르면 펼친다. 접힘은 저장해 둔다', async ($, on) => {
+    inRepo(on, '/repo/one', {
+      global: [
+        { id: 'g1', text: '지금 어디까지 진행했는지 알려줘', title: '진행상황' },
+        { id: 'g2', text: '맞아 그렇게 진행해' },
+        { id: 'g3', text: '/ux-writing README 문구를 다듬어줘' },
+      ],
+      'repo:/repo/one': [{ id: 'p1', text: '테스트 돌려줘', title: '테스트' }],
+    })
+    const sent: string[] = []
+    on('prompt.submit', (_$, e) => {
+      sent.push(e.text)
+      return { text: e.text }
+    })
+
+    let ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect((await ui.find({ key: 'compact' }))?.props?.hotkey).toBe('0')
+    expect((await ui.find({ key: 'send:g1' }))?.props?.label).toBe('지금 어디까지 진행했는지 알려줘')
+
+    await ui.press({ key: 'compact' })
+    expect((await ui.find({ key: 'send:g1' }))?.props?.label).toBe('진행상황')
+    // 제목이 없으면 문구를 줄여 보인다.
+    expect((await ui.find({ key: 'send:g2' }))?.props?.label).toBe('맞아 그렇게 진행해')
+    expect((await ui.find({ key: 'send:g3' }))?.props?.label).toBe('/ux-writing…')
+    expect(await ui.find({ key: 'group:global' })).toBeDefined()
+    expect(await ui.find({ key: 'group:project' })).toBeDefined()
+    expect(await ui.findAll({ type: 'Text', text: '|' })).toHaveLength(2)
+    expect(await ui.find({ type: 'Text', text: '/ux-writing' })).toBeDefined()
+    expect((await ui.find({ key: 'send:p1' }))?.props?.hotkey).toBe('4')
+    // 접어도 보내는 건 원래 문구다.
+    await ui.press({ key: 'send:g1' })
+    expect(sent).toEqual(['지금 어디까지 진행했는지 알려줘'])
+
+    await ui.press({ key: 'compact' })
+    expect((await ui.find({ key: 'send:g1' }))?.props?.label).toBe('지금 어디까지 진행했는지 알려줘')
+    expect(await ui.find({ key: 'group:global' })).toBeUndefined()
+    await ui.unmount()
+
+    ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect((await ui.find({ key: 'compact' }))?.props?.label).toBe('접기')
+    await ui.unmount()
+  })
+
+  test('편집 화면의 t로 제목을 달고, 비워 저장하면 제목을 지운다', async ($, on) => {
+    inRepo(on, '/repo/one')
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    await ui.press({ key: 'edit' })
+    await ui.press({ key: 'select:default-0' })
+    expect((await ui.find({ key: 'act-title' }))?.props?.hotkey).toBe('t')
+    await ui.press({ key: 'act-title' })
+    await ui.input({ key: 'input', text: '진행' })
+    expect(await ui.find({ type: 'Text', text: '  제목: 진행' })).toBeDefined()
+
+    await ui.press({ key: 'act-title' })
+    expect((await ui.find({ key: 'input' }))?.props?.value).toBe('진행')
+    await ui.input({ key: 'input', text: '' })
+    expect(await ui.find({ type: 'Text', text: '  제목: 진행' })).toBeUndefined()
+
+    // 다시 달고 접으면 그 제목이 보인다.
+    await ui.press({ key: 'act-title' })
+    await ui.input({ key: 'input', text: '진행' })
+    await ui.press({ key: 'done' })
+    await ui.press({ key: 'compact' })
+    expect((await ui.find({ key: 'send:default-0' }))?.props?.label).toBe('진행')
+    await ui.unmount()
+  })
+
   test('편집 중에는 띠를 혼자 쓰고, 다른 모드의 줄은 넣지 않는다', async ($, on) => {
     inRepo(on, '/repo/one', {}, false)
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {

@@ -15,8 +15,12 @@ const repo = atom({ plugin: 'quick-replies', key: 'repo' } as const, null)
 const globalReplies = atom({ plugin: 'quick-replies', key: 'globalReplies' } as const, null)
 const projectReplies = atom({ plugin: 'quick-replies', key: 'projectReplies' } as const, null)
 const mode = atom({ plugin: 'quick-replies', key: 'mode' } as const, { kind: 'view' } as Mode)
+const compact = atom({ plugin: 'quick-replies', key: 'compact' } as const, null)
 
 const GLOBAL_KEY = 'global'
+const COMPACT_KEY = 'compact'
+// 접은 띠에서 제목이 없는 프리셋은 문구를 이 길이까지 줄여 보인다.
+const MAX_TITLE_CHARS = 12
 const projectKey = (root: string) => `repo:${root}`
 
 // git 저장소 안이면 그 최상위 폴더, 아니면 세션 폴더가 프로젝트 프리셋의 단위다.
@@ -44,11 +48,24 @@ async function current($: EngineInterface): Promise<Presets> {
   return { root, global, project }
 }
 
+// 접힘도 프리셋처럼 세션 시작 때 채운 값을 먼저, 없으면 저장소에서 읽는다. 처음에는 펼쳐 둔다.
+async function isCompact($: EngineInterface): Promise<boolean> {
+  return (await read($, compact)) ?? (((await $.store.get(COMPACT_KEY)) as boolean | undefined) ?? false)
+}
+
+async function toggleCompact($: EngineInterface): Promise<void> {
+  const next = !(await isCompact($))
+  await update($, compact, () => next)
+  await $.store.set(COMPACT_KEY, next)
+}
+
 async function load($: EngineInterface): Promise<void> {
   const { root, global, project } = await current($)
   await update($, repo, () => root)
   await update($, globalReplies, () => global)
   await update($, projectReplies, () => project)
+  const folded = await isCompact($)
+  await update($, compact, () => folded)
 }
 
 // 두 목록을 함께 바꾼다. 한 프리셋을 전역과 프로젝트 사이로 옮길 때 양쪽을 한 번에 저장하기 위해서다.
@@ -86,6 +103,22 @@ async function send($: EngineInterface, text: string): Promise<void> {
 
 const without = (list: Reply[], id: string) => list.filter(r => r.id !== id)
 const renamed = (list: Reply[], id: string, text: string) => list.map(r => (r.id === id ? { ...r, text } : r))
+// 빈 제목은 제목을 지운다. 그러면 접은 띠에 문구를 줄여 보인다.
+const retitled = (list: Reply[], id: string, title: string) =>
+  list.map(r => {
+    if (r.id !== id) {
+      return r
+    }
+    const { title: _old, ...rest } = r
+    return title === '' ? rest : { ...rest, title }
+  })
+
+export function shortTitle(reply: Reply): string {
+  if (reply.title !== undefined) {
+    return reply.title
+  }
+  return reply.text.length <= MAX_TITLE_CHARS ? reply.text : `${reply.text.slice(0, MAX_TITLE_CHARS).trimEnd()}…`
+}
 
 // 띠의 requestId. 편집 화면을 열 때 키보드 포커스를 띠로 옮기는 데 쓴다(그릴 때마다 갱신).
 let bandId: string | null = null
@@ -98,9 +131,15 @@ async function openEditor($: EngineInterface): Promise<void> {
   }
 }
 
-// 입력칸에서 Enter를 누르면 추가하거나 고친다. 빈 문구는 무시한다.
+// 입력칸에서 Enter를 누르면 추가하거나 고친다. 빈 문구는 무시하고, 빈 제목은 제목을 지운다.
 async function submitInput($: EngineInterface, editing: EditInput, text: string): Promise<void> {
-  if (text !== '') {
+  if (editing.kind === 'title') {
+    await save($, p => ({
+      ...p,
+      global: retitled(p.global, editing.id, text),
+      project: retitled(p.project, editing.id, text),
+    }))
+  } else if (text !== '') {
     if (editing.kind === 'add') {
       const reply = { id: crypto.randomUUID(), text }
       await save($, p =>
@@ -173,39 +212,57 @@ export const register: Register = on => {
 
     if (shown.kind === 'view') {
       const below = await next(e)
+      const folded = await isCompact($)
       // 숫자 단축키는 띠 틀이 위에서부터 다시 매긴다. 여기서는 순서만 정해 두고 1부터 붙인다.
       let hotkey = 0
       const chip = (reply: Reply) => {
         hotkey += 1
+        // 접으면 제목을 보인다. 제목이 없으면 문구를 줄여 보이고, /명령이면 명령 부분을 칠한다.
+        const label = folded ? shortTitle(reply) : reply.text
+        // 보이는 글이 /명령으로 시작하면 그 부분만 칠한다. 접어 줄인 글도 명령 이름은 원래 문구에서 찾는다.
         const command = parseCommand(reply.text)
+        const prefix = command === null ? '' : `/${command.command}`
+        const isCommand = prefix !== '' && label.startsWith(prefix)
         return (
           <Button
             key={`send:${reply.id}`}
-            label={reply.text}
+            label={label}
             plain
             {...(hotkey <= 9 ? { hotkey: String(hotkey) } : {})}
             onPress={() => {
               void send($, reply.text)
             }}
           >
-            {command === null ? (
-              reply.text
-            ) : (
-              // 스킬이나 슬래시 명령은 명령 부분만 하늘색으로 칠해 일반 문장과 구분한다.
+            {isCommand ? (
+              // 스킬이나 슬래시 명령은 명령 부분만 번호와 같은 색으로 칠해 일반 문장과 구분한다.
               <Text>
-                <Text color={ACCENT}>/{command.command}</Text>
-                {command.args === '' ? '' : ` ${command.args}`}
+                <Text color={ACCENT}>{prefix}</Text>
+                {label.slice(prefix.length)}
               </Text>
+            ) : (
+              label
             )}
           </Button>
         )
       }
-      // 다음 제안과 같은 모양으로, 제목 줄 아래에 한 줄에 하나씩 둔다. 그래서 두 목록의 번호가 같은 열에 선다.
-      const line = (reply: Reply) => (
-        <Box key={`line:${reply.id}`} paddingLeft={2}>
-          {chip(reply)}
-        </Box>
-      )
+      // 펼치면 다음 제안과 같은 모양으로, 제목 줄 아래에 한 줄에 하나씩 둔다. 그래서 두 목록의 번호가 같은 열에 선다.
+      // 접으면 한 범위를 한 줄에 `4: 제목 | 5: 제목`으로 잇는다.
+      const group = (scope: Scope, list: Reply[]) =>
+        folded ? (
+          <Box key={`group:${scope}`} flexDirection="row" flexWrap="wrap" columnGap={1} paddingLeft={2}>
+            {list.flatMap((reply, i) => [
+              ...(i > 0 ? [<Text key={`sep:${reply.id}`} dimColor>|</Text>] : []),
+              chip(reply),
+            ])}
+          </Box>
+        ) : (
+          list.map(reply => (
+            <Box key={`line:${reply.id}`} paddingLeft={2}>
+              {chip(reply)}
+            </Box>
+          ))
+        )
+      // 0은 다음 제안 줄까지 함께 접고 편다. next-prompts가 이 값을 읽는다.
       const rows = (
         <Box flexDirection="column">
           <Box flexDirection="row" columnGap={2}>
@@ -213,10 +270,18 @@ export const register: Register = on => {
             <Button key="edit" label="편집" plain dimColor onPress={() => openEditor($)}>
               ✎ 편집
             </Button>
+            <Button
+              key="compact"
+              label={folded ? '펼치기' : '접기'}
+              hotkey="0"
+              plain
+              dimColor
+              onPress={() => toggleCompact($)}
+            />
           </Box>
-          {presets.global.map(line)}
+          {presets.global.length > 0 && group('global', presets.global)}
           {presets.project.length > 0 && <Text dimColor>로컬</Text>}
-          {presets.project.map(line)}
+          {presets.project.length > 0 && group('project', presets.project)}
         </Box>
       )
       return withBandSection(below, 'quick-replies', ORDER, rows)
@@ -224,7 +289,7 @@ export const register: Register = on => {
 
     // 편집 화면: 띠를 혼자 쓰고, 키 하나로 동작한다.
     //   숫자 1~9: 프리셋 고르기 / a: 전역에 추가 / l: 로컬에 추가 / q: 완료
-    //   고른 프리셋에: e 수정 / d 삭제 / m 범위 바꾸기 / k 위로 / j 아래로
+    //   고른 프리셋에: e 문구 수정 / t 제목 / d 삭제 / m 범위 바꾸기 / k 위로 / j 아래로
     const all = [
       ...presets.global.map(reply => ({ reply, scope: 'global' as Scope })),
       ...presets.project.map(reply => ({ reply, scope: 'project' as Scope })),
@@ -245,7 +310,12 @@ export const register: Register = on => {
             plain
             {...(index < 9 ? { hotkey: String(index + 1) } : {})}
             onPress={() => setEdit({ selected: entry.reply.id, input: null })}
-          />
+          >
+            <Text>
+              {entry.reply.text}
+              {entry.reply.title !== undefined && <Text dimColor>{`  제목: ${entry.reply.title}`}</Text>}
+            </Text>
+          </Button>
         </Box>
       )
     }
@@ -266,16 +336,25 @@ export const register: Register = on => {
     let inputRow = null
     if (shown.input !== null) {
       const editing = shown.input
-      const original = editing.kind === 'rename' ? all.find(x => x.reply.id === editing.id)?.reply.text : undefined
+      const target = editing.kind === 'add' ? undefined : all.find(x => x.reply.id === editing.id)?.reply
+      const original = editing.kind === 'rename' ? target?.text : editing.kind === 'title' ? target?.title : undefined
       const title =
-        editing.kind === 'rename' ? '수정' : editing.scope === 'global' ? '전역에 추가' : '로컬에 추가'
+        editing.kind === 'rename'
+          ? '문구 수정'
+          : editing.kind === 'title'
+            ? '제목'
+            : editing.scope === 'global'
+              ? '전역에 추가'
+              : '로컬에 추가'
       inputRow = (
         <Box flexDirection="row" columnGap={1}>
           <Text color={ACCENT}>{title}</Text>
           <Input
             key="input"
             {...(original === undefined ? {} : { value: original })}
-            placeholder="문구, 또는 /스킬 이름과 문구"
+            placeholder={
+              editing.kind === 'title' ? '접었을 때 보일 짧은 이름 (비우면 문구를 줄여 보여요)' : '문구, 또는 /스킬 이름과 문구'
+            }
             submitLabel="저장"
             autoFocus
             onSubmit={(value: string) => {
@@ -299,11 +378,12 @@ export const register: Register = on => {
         {group(`로컬 (${projectName})`, 'project')}
         {inputRow}
         {selected === null ? (
-          <Text dimColor>숫자를 눌러 프리셋을 고르면 수정, 삭제, 옮기기를 할 수 있어요.</Text>
+          <Text dimColor>숫자를 눌러 프리셋을 고르면 수정, 제목 달기, 삭제, 옮기기를 할 수 있어요.</Text>
         ) : (
           <Box flexDirection="row" columnGap={2}>
             <Text dimColor>고른 프리셋</Text>
-            {action('act-edit', 'e', '수정', () => setEdit({ input: { kind: 'rename', id: selected.reply.id } }))}
+            {action('act-edit', 'e', '문구 수정', () => setEdit({ input: { kind: 'rename', id: selected.reply.id } }))}
+            {action('act-title', 't', '제목', () => setEdit({ input: { kind: 'title', id: selected.reply.id } }))}
             {action('act-delete', 'd', '삭제', () => removePreset($, selected.reply.id))}
             {action('act-move', 'm', selected.scope === 'global' ? '로컬로' : '전역으로', () =>
               movePreset($, selected.reply.id),

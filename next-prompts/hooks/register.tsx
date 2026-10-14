@@ -1,13 +1,16 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
+import type { Suggestions } from '../types'
 import { withBandSection } from './band'
 import { MIN_ANSWER_CHARS, SYSTEM, buildPrompt, parseSuggestions } from './suggest'
 
 // 띠 안의 순서. quick-replies 프리셋 줄(20) 위에 온다.
 const ORDER = 10
 
-const suggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as const, [] as readonly string[])
+const suggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as const, [] as Suggestions)
+// 접기는 quick-replies의 0이 정한다. quick-replies가 없으면 늘 펼친다.
+const COMPACT = { plugin: 'quick-replies', key: 'compact' } as const
 const lastPrompt = atom({ plugin: 'next-prompts', key: 'lastPrompt' } as const, '')
 
 // 제안을 만드는 동안 사용자가 새 프롬프트를 보냈으면, 늦게 온 제안은 버린다.
@@ -57,36 +60,51 @@ export const register: Register = on => {
       return next(e)
     }
     const below = await next(e)
-    const list = await read($, suggestions)
+    // 0.2.x가 남긴 문자열 제안은 제목이 없으니 버린다.
+    const list = (await read($, suggestions)).filter(item => typeof item === 'object')
     if (e.props.isWorking || list.length === 0) {
       return withBandSection(below, 'next-prompts', ORDER, null)
     }
 
+    const folded = (await read($, COMPACT)) === true
     const { Box, Button, Text } = $.ui.resolve(e)
     const clear = () => update($, suggestions, () => [])
 
-    // 제목 줄 다음에 제안을 한 줄에 하나씩 둔다.
-    // 입력창이 비어 있을 때 숫자 1~3은 그 제안을 입력창에 초안으로 넣는다(보내지는 않는다). 0은 닫는다.
+    // 입력창이 비어 있을 때 숫자 1~3은 그 제안을 입력창에 초안으로 넣는다(보내지는 않는다).
+    // 0은 quick-replies가 맡아 이 줄까지 함께 접고 편다. 닫기는 클릭으로만 한다.
+    const pick = (item: Suggestions[number], i: number) => (
+      <Button
+        key={`pick:${i + 1}`}
+        label={folded ? item.title : item.text}
+        hotkey={String(i + 1)}
+        plain
+        onPress={async () => {
+          await $.prompt.fill({ text: item.text })
+          await clear()
+        }}
+      />
+    )
+    // 펼치면 제목 줄 다음에 제안을 한 줄에 하나씩, 접으면 `1: 제목 | 2: 제목`으로 한 줄에 잇는다.
     const row = (
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={2}>
           <Text dimColor>다음 제안</Text>
-          <Button key="dismiss" label="닫기" hotkey="0" plain dimColor role="dismiss" onPress={clear} />
+          <Button key="dismiss" label="닫기" plain dimColor role="dismiss" onPress={clear} />
         </Box>
-        {list.map((text, i) => (
-          <Box key={`line:${i + 1}`} paddingLeft={2}>
-            <Button
-              key={`pick:${i + 1}`}
-              label={text}
-              hotkey={String(i + 1)}
-              plain
-              onPress={async () => {
-                await $.prompt.fill({ text })
-                await clear()
-              }}
-            />
+        {folded ? (
+          <Box key="picks" flexDirection="row" flexWrap="wrap" columnGap={1} paddingLeft={2}>
+            {list.flatMap((item, i) => [
+              ...(i > 0 ? [<Text key={`sep:${i}`} dimColor>|</Text>] : []),
+              pick(item, i),
+            ])}
           </Box>
-        ))}
+        ) : (
+          list.map((item, i) => (
+            <Box key={`line:${i + 1}`} paddingLeft={2}>
+              {pick(item, i)}
+            </Box>
+          ))
+        )}
       </Box>
     )
     return withBandSection(below, 'next-prompts', ORDER, row)

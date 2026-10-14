@@ -1,7 +1,7 @@
 {
   "name": "next-prompts",
-  "version": "0.2.1",
-  "description": "턴이 끝나면 다음에 보낼 만한 프롬프트 2~3개를 입력창 위에 제안한다. 숫자로 골라 입력창에 초안으로 넣는다",
+  "version": "0.3.0",
+  "description": "턴이 끝나면 다음에 보낼 만한 프롬프트 2~3개를 입력창 위에 제안한다. 숫자로 골라 입력창에 초안으로 넣고, 접으면 제목만 한 줄에 보인다",
   "author": { "name": "oobg" },
   "license": "MIT",
   "types": "./types/index.d.ts"

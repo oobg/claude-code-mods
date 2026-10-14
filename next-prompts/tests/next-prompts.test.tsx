@@ -15,17 +15,21 @@ const BAND = {
 } as const
 
 describe('next-prompts', () => {
-  test('모델 답에서 번호와 기호를 걷어 내고 3개까지, 너무 긴 줄은 빼고 고른다', () => {
+  test('모델 답에서 번호와 기호를 걷어 내고 3개까지, 너무 긴 줄은 빼고 고른다. 제목이 없으면 요청을 줄여 쓴다', () => {
     const reply = [
-      '1. 방금 만든 테스트 돌려줘',
-      '- "커밋해줘"',
+      '1. 테스트 실행 :: 방금 만든 테스트 돌려줘',
+      '- "커밋 :: 커밋해줘"',
       '',
       '커밋해줘',
       '이 줄은 띠 한 줄에 들어가기에는 너무 길어서 제안으로 쓰기 어려운 문장입니다 정말로요 그래서 예순 글자를 훌쩍 넘기도록 길게 늘여 쓴 문장입니다',
-      '• README에 반영해줘',
+      '• README에 바뀐 설치 방법 반영해줘',
       '네 번째는 버린다',
     ].join('\n')
-    expect(parseSuggestions(reply)).toEqual(['방금 만든 테스트 돌려줘', '커밋해줘', 'README에 반영해줘'])
+    expect(parseSuggestions(reply)).toEqual([
+      { title: '테스트 실행', text: '방금 만든 테스트 돌려줘' },
+      { title: '커밋', text: '커밋해줘' },
+      { title: 'README에 바뀐 설…', text: 'README에 바뀐 설치 방법 반영해줘' },
+    ])
   })
 
   test('요청에는 사용자의 마지막 요청과 답의 끝부분만 들어간다', () => {
@@ -47,7 +51,7 @@ describe('next-prompts', () => {
       return <Text>engine-band</Text>
     })
     on('model.complete', () => ({
-      value: { isAnswered: true, text: '테스트 돌려줘\n커밋해줘', usage: {} } as never,
+      value: { isAnswered: true, text: '테스트 :: 테스트 돌려줘\n커밋 :: 커밋해줘', usage: {} } as never,
     }))
     on('turn.complete', () => ({ text: '' }))
     on('prompt.submit', () => ({ text: '' }) as never)
@@ -65,6 +69,34 @@ describe('next-prompts', () => {
     await ui.press({ key: 'pick:2' })
     expect(filled).toEqual(['커밋해줘'])
     expect(await ui.find({ type: 'Text', text: 'engine-band' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('quick-replies가 접어 두면 제목만 한 줄에 잇고, 0은 quick-replies에 맡긴다', async ($, on) => {
+    mock.store(on)
+    on('state.get', { plugin: 'quick-replies', key: 'compact' }, () => ({ value: { value: true, version: 1 } }) as never)
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-band</Text>
+    })
+    on('model.complete', () => ({
+      value: { isAnswered: true, text: '테스트 :: 테스트 돌려줘\n커밋 :: 커밋해줘', usage: {} } as never,
+    }))
+    on('turn.complete', () => ({ text: '' }))
+    on('prompt.submit', () => ({ text: '' }) as never)
+
+    await $.prompt.submit({ text: '버튼 꾸며줘' } as never)
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
+    let ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
+    for (let i = 0; i < 50 && (await ui.find({ key: 'pick:1' })) === undefined; i++) {
+      await ui.unmount()
+      ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
+    }
+    expect((await ui.find({ key: 'pick:1' }))?.props?.label).toBe('테스트')
+    expect((await ui.find({ key: 'pick:2' }))?.props?.label).toBe('커밋')
+    expect(await ui.find({ key: 'picks' })).toBeDefined()
+    expect(await ui.findAll({ type: 'Text', text: '|' })).toHaveLength(1)
+    expect((await ui.find({ key: 'dismiss' }))?.props?.hotkey).toBeUndefined()
     await ui.unmount()
   })
 })
