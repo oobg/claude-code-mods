@@ -6,5 +6,15 @@
     "name": "oobg"
   },
   "license": "MIT",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "dashboard",
+    "statusline",
+    "status-bar",
+    "usage",
+    "context",
+    "rate-limit",
+    "theme",
+    "claude-code"
+  ]
 }

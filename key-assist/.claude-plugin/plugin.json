@@ -5,5 +5,15 @@
   "license": "MIT",
   "author": {
     "name": "oobg"
-  }
+  },
+  "keywords": [
+    "key-assist",
+    "keyboard-shortcuts",
+    "clipboard",
+    "paste",
+    "file-path",
+    "undo",
+    "macos",
+    "claude-code"
+  ]
 }
