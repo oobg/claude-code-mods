@@ -10,7 +10,7 @@ const HINT = {
 
 const OUTPUT =
   '\x1b[38;5;117m◆ Opus(X)\x1b[0m \x1b[2m│\x1b[0m \x1b[38;5;222m$12.58\x1b[0m\n' +
-  '\x1b[38;5;218m(\x1b]8;;https://example.com\x1b\\main\x1b]8;;\x1b\\)\x1b[0m\n'
+  '\x1b[38;5;218m(\x1b]8;;https://example.com\x1b\\main\x1b]8;;\x1b\\)\x1b[0m \x1b[38;5;249m🔑 abc12345\x1b[0m\n'
 
 // 세션 값과 파일, 명령을 흉내 낸다. 기록 파일의 마지막 권한 모드는 `mode`다.
 // `run`은 claude-dashboard에 넘긴 입력(JSON 문자열)을 받는다.
@@ -27,7 +27,8 @@ function session(on: On, mode: string, run: (stdin: string) => void = () => {}) 
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('session.cwd', () => ({ value: '/work/repo' }))
   on('session.root', () => ({ value: '/work/repo' }))
-  on('session.id', () => ({ value: 'abc' }))
+  on('session.id', () => ({ value: 'abc12345-0000' }))
+  on('fs.read', () => ({ value: JSON.stringify({ oauthAccount: { emailAddress: 'me@example.com' } }) }))
   on('session.version', () => ({ value: { version: '2.1.296' } as never }))
   on('fs.list', () => ({ value: [{ name: '1.29.0', kind: 'dir' }, { name: '1.3.0', kind: 'dir' }] as never }))
   on('process.run', (_$, e) => {
@@ -53,7 +54,7 @@ describe('dashboard', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]?.[0]).toEqual({ text: '◆ Opus(X)', color: 'ansi256(117)' })
     expect(rows[0]?.find(s => s.text === '│')?.dim).toBe(true)
-    expect(rows[1]?.map(s => s.text).join('')).toBe('(main)')
+    expect(rows[1]?.map(s => s.text).join('')).toBe('(main) 🔑 abc12345')
   })
 
   test('안내 문구 아래에 대시보드 줄을 그리고 권한 모드 폭만큼 당긴다', async ($, on) => {
@@ -65,6 +66,9 @@ describe('dashboard', () => {
       const ui = await $.ui.mount({ plugin: 'dashboard', surface, ...HINT })
       expect(await ui.find({ type: 'Text', text: '(shift+tab to cycle)' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: '$12.58' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: '🔑 me@example.com' })).toBeDefined()
+      // 색이 없는 글자(공백, 구분자 사이 값)는 흐리게 그린다.
+      expect((await ui.find({ type: 'Text', text: ' ' }))?.props?.dimColor).toBe(true)
       const section = await ui.find({ key: 'oobg-footer:20:dashboard' })
       expect(section?.props?.marginLeft).toBe(-27)
       await ui.unmount()

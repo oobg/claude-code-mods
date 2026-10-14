@@ -91,6 +91,29 @@ async function readTranscript($: EngineInterface): Promise<{ path: string; text:
   return null
 }
 
+// Claude Code에 로그인한 계정의 이메일. ~/.claude.json에 들어 있고, API 키로 쓰면 없다.
+async function readEmail($: EngineInterface, home: string): Promise<string | null> {
+  try {
+    const config = JSON.parse(await $.fs.read(`${home}/.claude.json`)) as {
+      oauthAccount?: { emailAddress?: string }
+    }
+    return config.oauthAccount?.emailAddress ?? null
+  } catch {
+    return null
+  }
+}
+
+// claude-dashboard는 열쇠 아이콘 옆에 세션 id 앞 8자리를 그린다. 그 자리를 로그인 이메일로 바꾼다.
+function withEmail(rows: Segment[][], sessionId: string, email: string | null): Segment[][] {
+  const shortId = sessionId.slice(0, 8)
+  if (email === null || shortId === '') {
+    return rows
+  }
+  return rows.map(row =>
+    row.map(seg => (seg.text.includes('🔑') ? { ...seg, text: seg.text.replace(shortId, email) } : seg)),
+  )
+}
+
 // 메시지 전송과 턴 마무리를 막지 않도록, 다시 그리기에서 난 오류는 여기서 삼킨다.
 async function refresh($: EngineInterface): Promise<void> {
   try {
@@ -158,7 +181,7 @@ async function render($: EngineInterface): Promise<void> {
       timeoutMs: 10_000,
     })
     if (exitCode === 0) {
-      const parsed = parseAnsi(stdout)
+      const parsed = withEmail(parseAnsi(stdout), id, await readEmail($, home))
       await update($, lines, () => parsed)
     }
   } catch {
@@ -199,12 +222,13 @@ export const register: Register = on => {
     }
 
     const { Box, Text } = $.ui.resolve(e)
+    // 색이 지정되지 않은 글자는 원래 상태줄처럼 흐리게(회색) 그린다. 그대로 두면 새하얗게 보인다.
     const section = (
       <Box flexDirection="column">
         {rows.map(row => (
           <Text wrap="truncate-end">
             {row.map(seg => (
-              <Text color={seg.color} bold={seg.bold} dimColor={seg.dim}>
+              <Text color={seg.color} bold={seg.bold} dimColor={seg.dim === true || seg.color === undefined}>
                 {seg.text}
               </Text>
             ))}
