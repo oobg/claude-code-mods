@@ -84,7 +84,7 @@
       backdrop-filter: saturate(160%) blur(12px);
       border-bottom: 1px solid var(--line);
     }
-    .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+    .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; min-width: 0; }
     .brand img { width: 24px; height: 24px; }
     .right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
     .search {
@@ -98,7 +98,7 @@
     .search kbd { margin-left: auto; font: 500 11px/1 Inter, sans-serif; color: var(--text-3); border: 1px solid var(--line-strong); border-radius: 5px; padding: 3px 5px; }
     .icon {
       display: inline-flex; align-items: center; gap: 6px; height: 34px; min-width: 34px; padding: 0 8px; justify-content: center;
-      border: 0; border-radius: 8px; background: none; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; text-decoration: none;
+      border: 0; border-radius: 8px; background: none; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap;
     }
     .icon:hover { color: var(--text); background: var(--hover); }
     .icon svg { width: 17px; height: 17px; fill: currentColor; }
@@ -208,7 +208,8 @@
       .layout { display: block; }
       .side { display: none; position: fixed; top: 56px; left: 0; right: 0; z-index: 15; height: auto; max-height: calc(100vh - 56px); background: var(--bg); border-bottom: 1px solid var(--line); }
       .side.open { display: block; }
-      .top { padding: 0 12px 0 16px; }
+      .top { padding: 0 8px 0 16px; gap: 8px; }
+      .right { gap: 0; }
       .search { width: 34px; padding: 0; justify-content: center; margin-right: 0; border: 0; background: none; }
       .search span, .search kbd { display: none; }
       .menu { display: inline-flex; }
