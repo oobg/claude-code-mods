@@ -391,7 +391,7 @@
         'JSON': [[/"(?:\\.|[^"\\])*"(?=\s*:)/, 't-key'], [/"(?:\\.|[^"\\])*"/, 't-str'], [/\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/, 't-num'], [/[{}\[\],:]/, 't-dim']],
         'Claude Code': [[/^\/[\w:-]+/, 't-cmd'], [/@[\w-]+/, 't-dim'], [/<[^>]+>/, 't-ph'], [/#.*$/, 't-dim']],
         '터미널': [[/^\s*(?:claude|npm|cd|git|gh)\b/, 't-cmd'], [/\s--?[\w-]+/, 't-key'], [/@[\w-]+/, 't-dim'], [/<[^>]+>/, 't-ph'], [/#.*$/, 't-dim']],
-        '화면': [[/\$(?:\d+|[a-z])\b:?/, 't-ref'], [/[▰█]+/, 't-str'], [/[▱░]+|[│·⎇▌]/, 't-dim'], [/\d+(?:\.\d+)?%|\(\d+[KkM.\d]*\/[\d.]+[KkM]\)|\(\d+[dhm]\/\d+[dhm]\)/, 't-num']]
+        '화면': [[/\$(?:\d+|[a-z])(?![\w.]):?/, 't-ref'], [/[▰█]+/, 't-str'], [/[▱░]+|[│·⎇▌]/, 't-dim'], [/\d+(?:\.\d+)?%|\(\d+[KkM.\d]*\/[\d.]+[KkM]\)|\(\d+[dhm]\/\d+[dhm]\)/, 't-num']]
       };
       function escHtml(s) { return s.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
       function highlight(text, rules) {
