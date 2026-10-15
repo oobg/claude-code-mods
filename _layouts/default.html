@@ -203,6 +203,7 @@
     .doc hr { border: 0; border-top: 1px solid var(--line); margin: 48px 0; }
     .doc img { max-width: 100%; }
     .doc code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.82em; font-weight: 500; padding: 2px 5px; border-radius: 5px; background: var(--code-inline); color: var(--text); }
+    .doc :not(pre) > code { overflow-wrap: anywhere; }
 
     /* 콜아웃: GitHub 알림 문법(> [!NOTE])을 상자로 그린다 */
     .doc .callout { display: flex; gap: 12px; margin: 0 0 22px; padding: 14px 16px; border: 1px solid var(--callout-line); border-radius: 10px; background: var(--callout-bg); font-size: 15px; line-height: 1.65; }
