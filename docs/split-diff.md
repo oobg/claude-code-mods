@@ -5,8 +5,8 @@
 > 터미널 폭이 120칸 이상이면 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어는 더 밝은 색으로 강조합니다.
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/split-diff-dark.png">
-<img alt="split-diff: Edit 결과를 원래 내용과 바뀐 내용으로 나눠 좌우에 표시한다" src="./images/showcase/split-diff-light.png" width="100%">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/split-diff-dark.gif">
+<img alt="split-diff: 터미널 폭이 120칸 이상이면 좌우 diff, 미만이면 원래 세로 diff로 전환된다" src="./images/showcase/split-diff-light.gif" width="100%">
 </picture></p>
 
 | 항목 | 값 |
@@ -104,6 +104,15 @@ split-diff는 터미널 폭이 넓을 때 이 결과를 왼쪽(원래 내용)과
 | 생략 줄 | 바뀐 구간 사이의 `...` |
 
 줄 번호는 결과에서 자릿수가 가장 많은 번호에 맞춰 오른쪽 정렬합니다.
+
+### 실제 화면
+
+아래는 Claude Code 2.1.300에서 캡처한 실제 화면입니다. 위 GIF는 실제 화면을 바탕으로 재현한 애니메이션입니다.
+
+<p><picture>
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/split-diff-dark.png">
+<img alt="split-diff: Claude Code에서 캡처한 좌우 diff 화면" src="./images/showcase/split-diff-light.png" width="100%">
+</picture></p>
 
 ## 동작 방식
 
