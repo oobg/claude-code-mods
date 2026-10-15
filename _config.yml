@@ -42,3 +42,8 @@ defaults:
     values:
       seo_title: "key-assist: 파일 붙여넣기와 Cmd+Z"
       description: "Claude Code 플러그인 key-assist는 Finder에서 복사한 파일을 입력창에 붙여넣으면 이름을 @경로 멘션으로 바꿉니다. Cmd+Z를 입력 되돌리기 기능에 연결하며, macOS 전용입니다."
+  - scope:
+      path: "docs/split-diff.md"
+    values:
+      seo_title: "split-diff: 좌우로 나눠 보는 diff"
+      description: "Claude Code 플러그인 split-diff는 터미널 폭이 120칸 이상일 때 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어도 강조합니다."

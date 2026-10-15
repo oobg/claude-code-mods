@@ -4,7 +4,7 @@
     "name": "oobg"
   },
   "metadata": {
-    "description": "Claude Code 입력창 주변에 기능을 추가하는 모드 모음입니다. 다음 제안, $번호 프리셋, 두 줄 대시보드, 파일 경로 붙여넣기와 Cmd+Z 되돌리기를 담았습니다"
+    "description": "Claude Code 입력창 주변에 기능을 추가하는 모드 모음입니다. 다음 제안, $번호 프리셋, 두 줄 대시보드, 파일 경로 붙여넣기와 Cmd+Z 되돌리기, 좌우 diff를 담았습니다"
   },
   "plugins": [
     {
@@ -63,6 +63,18 @@
         "file-path",
         "undo",
         "macos",
+        "claude-code"
+      ]
+    },
+    {
+      "name": "split-diff",
+      "source": "./mods/split-diff",
+      "description": "터미널 폭이 120칸 이상이면 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어는 더 밝은 색으로 강조합니다",
+      "keywords": [
+        "split-diff",
+        "diff",
+        "side-by-side",
+        "edit",
         "claude-code"
       ]
     }

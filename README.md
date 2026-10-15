@@ -10,7 +10,7 @@
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
   <a href="https://claude.com/claude-code"><img alt="Claude Code 2.1.299" src="https://img.shields.io/badge/Claude%20Code-2.1.299-111111?style=flat-square"></a>
   <a href="#설치"><img alt="marketplace oobg" src="https://img.shields.io/badge/marketplace-oobg-111111?style=flat-square"></a>
-  <img alt="4 mods" src="https://img.shields.io/badge/mods-4-D97757?style=flat-square">
+  <img alt="5 mods" src="https://img.shields.io/badge/mods-5-D97757?style=flat-square">
   <a href="https://github.com/oobg/claude-code-mods/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/oobg/claude-code-mods?style=flat-square&color=111111"></a>
 </p>
 
@@ -67,6 +67,13 @@ claude-code-mods는 Claude Code 입력창 주변에 기능을 추가하는 모�
 <sub>Finder에서 복사한 파일을 붙여넣으면 파일 이름이 <code>@경로</code>로 바뀝니다. Cmd+Z로 입력 내용을 되돌릴 수 있습니다</sub>
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+<a href="./docs/split-diff.md"><img alt="split-diff: Edit 결과를 원래 내용과 바뀐 내용으로 나눠 좌우에 표시한다" src="./docs/images/showcase/split-diff-dark.png" width="100%"></a>
+<br><a href="./docs/split-diff.md"><b>split-diff</b></a><br>
+<sub>터미널 폭이 120칸 이상이면 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어는 더 밝은 색으로 강조합니다</sub>
+</td>
+</tr>
 </table>
 
 ## 특징
@@ -75,6 +82,7 @@ claude-code-mods는 Claude Code 입력창 주변에 기능을 추가하는 모�
 - **프리셋도 입력창에서 편집합니다.** 편집 화면에서 프리셋을 추가하거나 수정할 때는 입력창에 내용을 쓰고 Enter를 누르면 됩니다.
 - **상태 표시줄 대신 입력창 아래에 대시보드를 표시합니다.** 컨텍스트 사용량, 5시간과 7일 한도, Fable 한도, 모델, 브랜치를 두 줄로 확인할 수 있습니다.
 - **파일을 경로 멘션으로 붙여넣습니다.** Finder에서 복사한 파일을 붙여넣으면 파일 이름 대신 `@경로` 멘션이 입력됩니다.
+- **넓은 터미널에서는 diff를 좌우로 나눠 표시합니다.** 원래 줄과 바뀐 줄이 같은 높이에 나란히 표시됩니다.
 - **따로 설치할 프로그램이나 직접 고칠 설정 파일이 없습니다.** 마켓플레이스에서 필요한 모드만 골라 설치합니다.
 
 ## 설치
@@ -99,6 +107,7 @@ claude-code-mods는 Claude Code 입력창 주변에 기능을 추가하는 모�
 /plugin install quick-replies@oobg
 /plugin install dashboard@oobg
 /plugin install key-assist@oobg
+/plugin install split-diff@oobg
 ```
 
 설치한 모드는 Claude Code를 다시 시작하거나 `/reload-plugins`를 실행하면 적용됩니다. 설치 여부는 `/plugin` 화면에서 확인하거나 터미널에서 `claude plugin list`를 실행해 확인할 수 있습니다.
@@ -113,6 +122,7 @@ Claude Code를 시작하면 quick-replies의 기본 프리셋과 dashboard가 �
 | [quick-replies](./docs/quick-replies.md) | 자주 쓰는 문구를 전역 프리셋이나 저장소별 프리셋에 저장합니다 | 입력창 위 |
 | [dashboard](./docs/dashboard.md) | 모델, 컨텍스트, 사용 한도, 브랜치를 두 줄로 표시합니다 | 입력창 아래 |
 | [key-assist](./docs/key-assist.md) | 붙여넣은 파일 이름을 `@경로`로 바꾸고, Cmd+Z로 입력한 내용을 되돌립니다 | 입력창 |
+| [split-diff](./docs/split-diff.md) | 넓은 터미널에서 Edit와 Write 결과의 diff를 좌우로 나눠 표시합니다 | 도구 결과 |
 
 ## $번호로 문구 입력하기
 
@@ -187,6 +197,7 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 /plugin uninstall quick-replies@oobg
 /plugin uninstall dashboard@oobg
 /plugin uninstall key-assist@oobg
+/plugin uninstall split-diff@oobg
 ```
 
 > [!NOTE]
@@ -214,6 +225,7 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 | [quick-replies](./docs/quick-replies.md) | 프리셋 범위와 번호, 접기와 자동 제목, 편집 화면 키, 저장 데이터 |
 | [dashboard](./docs/dashboard.md) | 항목 설명, 표시 형태와 색상, `/usage` 조회, 참고 사항 |
 | [key-assist](./docs/key-assist.md) | 파일 붙여넣기 동작, Cmd+Z 키 설정, 제한 사항 |
+| [split-diff](./docs/split-diff.md) | 좌우 표시 조건, 줄 맞추기, 단어 강조, 제한 사항 |
 
 ## 라이선스
 
