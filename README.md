@@ -217,4 +217,6 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 
 ## 라이선스
 
-[MIT](./LICENSE)
+Copyright (c) 2026 oobg
+
+이 프로젝트는 [MIT 라이선스](./LICENSE)에 따라 배포됩니다.

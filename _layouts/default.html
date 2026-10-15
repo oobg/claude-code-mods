@@ -152,7 +152,11 @@
     .actions svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 
     /* 본문 */
-    main { min-width: 0; padding: 36px 48px 120px; }
+    main { min-width: 0; padding: 36px 48px 56px; }
+    .foot { max-width: 720px; margin: 96px auto 0; padding-top: 20px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 13.5px; color: var(--text-3); }
+    .foot nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+    .foot a { color: var(--text-3); text-decoration: none; }
+    .foot a:hover { color: var(--text); }
     .doc { max-width: 720px; margin: 0 auto; }
     .crumb { margin: 0 0 6px; font-size: 13.5px; color: var(--text-3); }
     .doc h1 { margin: 0 0 14px; font-size: 44px; line-height: 1.12; font-weight: 500; letter-spacing: -0.03em; }
@@ -311,6 +315,10 @@
         <p class="crumb">{% if page.url == '/' %}시작하기{% else %}모드{% endif %}</p>
 {{ content }}
       </article>
+      <footer class="foot">
+        <nav aria-label="저작권과 라이선스"><span>© 2026 oobg</span><a href="https://github.com/oobg/claude-code-mods/blob/main/LICENSE">MIT 라이선스</a></nav>
+        <nav aria-label="저장소 링크"><a href="https://github.com/oobg/claude-code-mods">GitHub</a><a href="https://github.com/oobg/claude-code-mods/edit/main/{{ page.path }}">이 페이지 편집</a></nav>
+      </footer>
     </main>
     <aside class="aside" aria-label="목차">
       <p class="aside-title">목차</p>
