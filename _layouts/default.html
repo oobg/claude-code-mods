@@ -9,6 +9,7 @@
   {%- assign page_desc = page.description | default: site.description -%}
   <title>{{ full_title }}</title>
   <meta name="description" content="{{ page_desc | escape }}">
+  <meta name="google-site-verification" content="oKVcuvmYqUv6-Ja_2d5UnmCQNk8t-bKyKfRWtLj8_xk">
   <link rel="canonical" href="{{ page.url | absolute_url }}">
   <meta property="og:type" content="{% if page.url == '/' %}website{% else %}article{% endif %}">
   <meta property="og:site_name" content="{{ site.title }}">
