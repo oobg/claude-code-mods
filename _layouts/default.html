@@ -502,7 +502,8 @@
       // 테마를 고르면 다크 source를 끄고 img에 고른 쪽 그림을 넣는다. 고르지 않았으면 시스템 설정을 따르게 되돌린다.
       function applyTheme(theme) {
         document.querySelectorAll('picture').forEach(function (pic) {
-          var s = pic.querySelector('source[media*="prefers-color-scheme"]');
+          // 한 번 바꾼 source는 media가 `not all`이라 data-media로도 찾는다.
+          var s = pic.querySelector('source[data-media], source[media*="prefers-color-scheme"]');
           var img = pic.querySelector('img');
           if (!s || !img) { return; }
           if (!s.dataset.media) { s.dataset.media = s.getAttribute('media'); s.dataset.srcset = s.getAttribute('srcset'); img.dataset.light = img.getAttribute('src'); }
