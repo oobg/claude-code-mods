@@ -189,7 +189,9 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 /plugin uninstall key-assist@oobg
 ```
 
-key-assist를 삭제해도 키 설정에 추가된 `cmd+z` 항목은 남습니다. 필요하지 않으면 `~/.claude/keybindings.json`에서 직접 지웁니다.
+> [!NOTE]
+> key-assist를 삭제해도 키 설정에 추가된 `cmd+z` 항목은 남습니다.
+> 필요하지 않으면 `~/.claude/keybindings.json`에서 직접 지웁니다.
 
 ## 문제 해결
 

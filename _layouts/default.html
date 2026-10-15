@@ -28,6 +28,12 @@
       --code-inline: #f1f1f1;
       --accent: #5769f7;
       --head-bg: rgba(255, 255, 255, 0.86);
+      --hl-cmd: #6a4fd8;
+      --hl-key: #0f6fa8;
+      --hl-str: #2f7d3a;
+      --hl-num: #b25b00;
+      --hl-ref: #5769f7;
+      --hl-dim: #9a9a9a;
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
@@ -43,6 +49,12 @@
         --code-inline: #161616;
         --accent: #b1b9f9;
         --head-bg: rgba(5, 5, 5, 0.86);
+        --hl-cmd: #c4b5fd;
+        --hl-key: #7cc4f5;
+        --hl-str: #9fd8a6;
+        --hl-num: #f5b971;
+        --hl-ref: #b1b9f9;
+        --hl-dim: #6f6f6f;
       }
     }
     :root[data-theme="dark"] {
@@ -58,6 +70,12 @@
       --code-inline: #161616;
       --accent: #b1b9f9;
       --head-bg: rgba(5, 5, 5, 0.86);
+      --hl-cmd: #c4b5fd;
+      --hl-key: #7cc4f5;
+      --hl-str: #9fd8a6;
+      --hl-num: #f5b971;
+      --hl-ref: #b1b9f9;
+      --hl-dim: #6f6f6f;
     }
     * { box-sizing: border-box; }
     html { scroll-padding-top: 76px; }
@@ -157,6 +175,27 @@
     .doc img { max-width: 100%; }
     .doc code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.82em; font-weight: 500; padding: 2px 5px; border-radius: 5px; background: var(--code-inline); color: var(--text); }
 
+    /* 콜아웃: GitHub 알림 문법(> [!NOTE])을 상자로 그린다 */
+    .doc .callout { display: flex; gap: 12px; margin: 0 0 22px; padding: 14px 16px; border: 1px solid var(--callout-line); border-radius: 10px; background: var(--callout-bg); font-size: 15px; line-height: 1.65; }
+    .doc .callout > svg { width: 18px; height: 18px; margin-top: 3px; stroke: var(--callout-fg); fill: none; stroke-width: 2; }
+    .doc .callout-body { min-width: 0; }
+    .doc .callout-title { margin: 0 0 2px; font-weight: 600; color: var(--callout-fg); }
+    .doc .callout-body p { margin: 0 0 6px; color: var(--text-2); }
+    .doc .callout-body p:last-child { margin-bottom: 0; }
+    .doc .callout { --callout-fg: #3b6fd8; --callout-bg: rgba(59, 111, 216, 0.06); --callout-line: rgba(59, 111, 216, 0.22); }
+    .doc .callout.tip { --callout-fg: #1f8a5b; --callout-bg: rgba(31, 138, 91, 0.06); --callout-line: rgba(31, 138, 91, 0.22); }
+    .doc .callout.important { --callout-fg: #7a5af0; --callout-bg: rgba(122, 90, 240, 0.06); --callout-line: rgba(122, 90, 240, 0.22); }
+    .doc .callout.warning { --callout-fg: #b7791f; --callout-bg: rgba(183, 121, 31, 0.07); --callout-line: rgba(183, 121, 31, 0.25); }
+    .doc .callout.caution { --callout-fg: #d0453a; --callout-bg: rgba(208, 69, 58, 0.06); --callout-line: rgba(208, 69, 58, 0.22); }
+    :root[data-theme="dark"] .doc .callout { --callout-fg: #7aa7ff; } :root[data-theme="dark"] .doc .callout.tip { --callout-fg: #5fd39a; }
+    :root[data-theme="dark"] .doc .callout.important { --callout-fg: #b39dff; } :root[data-theme="dark"] .doc .callout.warning { --callout-fg: #f0b45a; }
+    :root[data-theme="dark"] .doc .callout.caution { --callout-fg: #ff7b72; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .doc .callout { --callout-fg: #7aa7ff; } :root:not([data-theme="light"]) .doc .callout.tip { --callout-fg: #5fd39a; }
+      :root:not([data-theme="light"]) .doc .callout.important { --callout-fg: #b39dff; } :root:not([data-theme="light"]) .doc .callout.warning { --callout-fg: #f0b45a; }
+      :root:not([data-theme="light"]) .doc .callout.caution { --callout-fg: #ff7b72; }
+    }
+
     /* 코드 블록: 머리 줄(이름과 복사 버튼) + 본문 */
     .codeblock { margin: 0 0 22px; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; background: var(--code-bg); }
     .codeblock-head { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); }
@@ -166,6 +205,13 @@
     .codeblock pre { margin: 0; padding: 16px 18px; overflow-x: auto; background: none; border: 0; line-height: 1.6; }
     .codeblock pre code { padding: 0; background: none; font-size: 13px; font-weight: 400; }
     .doc .highlighter-rouge, .doc .highlight { background: none; }
+    .codeblock .t-cmd { color: var(--hl-cmd); font-weight: 500; }
+    .codeblock .t-key { color: var(--hl-key); }
+    .codeblock .t-str { color: var(--hl-str); }
+    .codeblock .t-num { color: var(--hl-num); }
+    .codeblock .t-ref { color: var(--hl-ref); font-weight: 500; }
+    .codeblock .t-dim { color: var(--hl-dim); }
+    .codeblock .t-ph { color: var(--hl-dim); font-style: italic; }
 
     /* 표: 머리 줄 밑줄과 줄 구분선만 */
     .doc .table-wrap { overflow-x: auto; margin: 0 0 24px; }
@@ -316,11 +362,52 @@
         }
       });
 
+      // GitHub 알림 문법(> [!NOTE] 등)을 콜아웃 상자로 바꾼다.
+      var CALLOUT = { note: '참고', tip: '팁', important: '중요', warning: '주의', caution: '경고' };
+      var CALLOUT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
+      doc.querySelectorAll('blockquote').forEach(function (q) {
+        var p = q.querySelector('p');
+        var m = p && p.firstChild && p.firstChild.nodeType === 3 && p.firstChild.nodeValue.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/);
+        if (!m) { return; }
+        var type = m[1].toLowerCase();
+        p.firstChild.nodeValue = p.firstChild.nodeValue.slice(m[0].length);
+        if (p.firstChild.nodeName === 'BR') { p.removeChild(p.firstChild); }
+        var box = document.createElement('div'); box.className = 'callout ' + type; box.setAttribute('role', 'note');
+        box.innerHTML = CALLOUT_ICON + '<div class="callout-body"><p class="callout-title"></p></div>';
+        box.querySelector('.callout-title').textContent = CALLOUT[type];
+        var body = box.querySelector('.callout-body');
+        while (q.firstChild) { body.appendChild(q.firstChild); }
+        q.parentNode.replaceChild(box, q);
+      });
+
       // 표는 가로로 넘치면 스크롤되게 감싼다(장면 카드 표는 제외).
       doc.querySelectorAll('table:not(.cards)').forEach(function (t) {
         var w = document.createElement('div'); w.className = 'table-wrap';
         t.parentNode.insertBefore(w, t); w.appendChild(t);
       });
+
+      // 코드 블록 색. 블록 종류마다 규칙(정규식, 클래스)을 정해 줄 단위로 칠한다.
+      var HL = {
+        'JSON': [[/"(?:\\.|[^"\\])*"(?=\s*:)/, 't-key'], [/"(?:\\.|[^"\\])*"/, 't-str'], [/\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/, 't-num'], [/[{}\[\],:]/, 't-dim']],
+        'Claude Code': [[/^\/[\w:-]+/, 't-cmd'], [/@[\w-]+/, 't-dim'], [/<[^>]+>/, 't-ph'], [/#.*$/, 't-dim']],
+        '터미널': [[/^\s*(?:claude|npm|cd|git|gh)\b/, 't-cmd'], [/\s--?[\w-]+/, 't-key'], [/@[\w-]+/, 't-dim'], [/<[^>]+>/, 't-ph'], [/#.*$/, 't-dim']],
+        '화면': [[/\$(?:\d+|[a-z])\b:?/, 't-ref'], [/[▰█]+/, 't-str'], [/[▱░]+|[│·⎇▌]/, 't-dim'], [/\d+(?:\.\d+)?%|\(\d+[KkM.\d]*\/[\d.]+[KkM]\)|\(\d+[dhm]\/\d+[dhm]\)/, 't-num']]
+      };
+      function escHtml(s) { return s.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+      function highlight(text, rules) {
+        var re = new RegExp(rules.map(function (r) { return '(' + r[0].source + ')'; }).join('|'), 'g');
+        return text.split('\n').map(function (line) {
+          var out = '', last = 0, m;
+          re.lastIndex = 0;
+          while ((m = re.exec(line))) {
+            if (!m[0]) { re.lastIndex++; continue; }
+            var k = 1; while (m[k] === undefined) { k++; }
+            out += escHtml(line.slice(last, m.index)) + '<span class="' + rules[k - 1][1] + '">' + escHtml(m[0]) + '</span>';
+            last = m.index + m[0].length;
+          }
+          return out + escHtml(line.slice(last));
+        }).join('\n');
+      }
 
       // 코드 블록에 머리 줄(이름과 복사 버튼)을 붙인다.
       doc.querySelectorAll('pre').forEach(function (pre) {
@@ -332,6 +419,8 @@
         var head = document.createElement('div'); head.className = 'codeblock-head';
         head.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg><span></span><button type="button" aria-label="복사">' + COPY + '</button>';
         head.querySelector('span').textContent = name;
+        var codeEl = pre.querySelector('code') || pre;
+        if (HL[name]) { codeEl.innerHTML = highlight(text.replace(/\n$/, ''), HL[name]); }
         holder.parentNode.insertBefore(box, holder);
         box.appendChild(head); box.appendChild(pre);
         if (holder !== pre) { holder.remove(); }
