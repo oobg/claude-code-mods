@@ -7,6 +7,9 @@
   {%- assign page_title = page.seo_title | default: page.title | default: site.title -%}
   {%- if page.url == '/' -%}{%- assign full_title = page_title -%}{%- else -%}{%- capture full_title -%}{{ page_title }} | {{ site.title }}{%- endcapture -%}{%- endif -%}
   {%- assign page_desc = page.description | default: site.description -%}
+  {%- comment -%} 링크 미리보기는 좁아 사이트 이름을 뺀 제목과 페이지마다의 이미지를 쓴다. {%- endcomment -%}
+  {%- assign og_title = page.og_title | default: page_title -%}
+  {%- assign og_image = page.og_image | default: '/docs/images/og.png' -%}
   <title>{{ full_title }}</title>
   <meta name="description" content="{{ page_desc | escape }}">
   <meta name="google-site-verification" content="oKVcuvmYqUv6-Ja_2d5UnmCQNk8t-bKyKfRWtLj8_xk">
@@ -14,17 +17,17 @@
   <meta property="og:type" content="{% if page.url == '/' %}website{% else %}article{% endif %}">
   <meta property="og:site_name" content="{{ site.title }}">
   <meta property="og:locale" content="ko_KR">
-  <meta property="og:title" content="{{ full_title | escape }}">
+  <meta property="og:title" content="{{ og_title | escape }}">
   <meta property="og:description" content="{{ page_desc | escape }}">
   <meta property="og:url" content="{{ page.url | absolute_url }}">
-  <meta property="og:image" content="{{ '/docs/images/og.png' | absolute_url }}">
+  <meta property="og:image" content="{{ og_image | absolute_url }}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="claude-code-mods 로고와 입력창 화면 예시">
+  <meta property="og:image:alt" content="{{ og_title | escape }} 소개 이미지">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{{ full_title | escape }}">
+  <meta name="twitter:title" content="{{ og_title | escape }}">
   <meta name="twitter:description" content="{{ page_desc | escape }}">
-  <meta name="twitter:image" content="{{ '/docs/images/og.png' | absolute_url }}">
+  <meta name="twitter:image" content="{{ og_image | absolute_url }}">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/png" href="{{ '/docs/images/favicon.png' | relative_url }}">

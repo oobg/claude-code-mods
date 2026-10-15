@@ -5,8 +5,8 @@
 > 반복해서 입력하던 "지금 진행상황"을 `$4`처럼 짧은 번호로 불러옵니다.
 
 <p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/substitute-dark.gif">
-<img alt="입력창에 $2를 치면 그 자리에 2번 문구가 들어간다" src="./images/showcase/substitute-light.gif" width="560">
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/preset-dark.gif">
+<img alt="입력창에 $1을 치면 그 자리에 1번 프리셋 문구가 들어간다" src="./images/showcase/preset-light.gif" width="560">
 </picture></p>
 
 | 항목 | 값 |

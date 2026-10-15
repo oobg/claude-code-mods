@@ -42,8 +42,8 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 </td>
 <td width="50%" valign="top">
 <a href="./docs/quick-replies.md"><picture>
-<source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/substitute-dark.gif">
-<img alt="quick-replies: 입력창에 $2를 치면 그 자리에 2번 문구가 들어간다" src="./docs/images/showcase/substitute-light.gif" width="100%">
+<source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/preset-dark.gif">
+<img alt="quick-replies: 입력창에 $1을 치면 그 자리에 1번 프리셋 문구가 들어간다" src="./docs/images/showcase/preset-light.gif" width="100%">
 </picture></a>
 <br><a href="./docs/quick-replies.md"><b>quick-replies</b></a><br>
 <sub>자주 쓰는 문구를 전역 또는 저장소별 프리셋으로 저장합니다. 입력창에 <code>$4</code>처럼 번호를 입력하면 해당 문구로 바뀝니다</sub>
