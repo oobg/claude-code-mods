@@ -149,14 +149,15 @@
     .home .doc > h1 + p { font-size: 20px; color: var(--text-soft); }
     .home .doc > p[align="center"] img[alt*="badge"], .home .doc > p[align="center"] a img { border-radius: 4px; }
     /* 주요 기능 카드 */
-    .home .doc table:first-of-type { border: 0; border-spacing: 16px; margin: 0 -16px 24px; width: calc(100% + 32px); overflow: visible; }
-    .home .doc table:first-of-type td { width: 50%; padding: 0 0 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-soft); overflow: hidden; transition: border-color 0.15s, transform 0.15s; }
-    .home .doc table:first-of-type td:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .home .doc table:first-of-type td img { border-radius: 0; display: block; }
-    .home .doc table:first-of-type td > a:first-child { display: block; }
-    .home .doc table:first-of-type td br:first-of-type { display: none; }
-    .home .doc table:first-of-type td > a + br + a, .home .doc table:first-of-type td b { display: inline-block; margin: 14px 18px 2px; font-size: 17px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
-    .home .doc table:first-of-type td sub { display: block; padding: 0 18px; font-size: 14px; line-height: 1.6; color: var(--text-soft); vertical-align: baseline; }
+    .doc table.cards { border: 0; border-spacing: 16px; margin: 0 -16px 24px; width: calc(100% + 32px); overflow: visible; }
+    .doc table.cards td:empty { border: 0; background: none; }
+    .doc table.cards td { width: 50%; padding: 0 0 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-soft); overflow: hidden; transition: border-color 0.15s, transform 0.15s; }
+    .doc table.cards td:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .doc table.cards td img { border-radius: 0; display: block; }
+    .doc table.cards td > a:first-child { display: block; }
+    .doc table.cards td br:first-of-type { display: none; }
+    .doc table.cards td > a + br + a, .doc table.cards td b { display: inline-block; margin: 14px 18px 2px; font-size: 17px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .doc table.cards td sub { display: block; padding: 0 18px; font-size: 14px; line-height: 1.6; color: var(--text-soft); vertical-align: baseline; }
 
     @media (max-width: 1180px) { .layout { grid-template-columns: 220px minmax(0, 1fr); } .toc { display: none; } }
     @media (max-width: 820px) {
@@ -167,9 +168,9 @@
       .tools { margin-left: auto; border-left: 0; padding-left: 0; }
       .menu { display: block; }
       main { padding: 28px 18px 72px; }
-      .home .doc table:first-of-type, .home .doc table:first-of-type tbody, .home .doc table:first-of-type tr, .home .doc table:first-of-type td { display: block; width: auto; }
-      .home .doc table:first-of-type { margin: 0 0 24px; }
-      .home .doc table:first-of-type td { margin-bottom: 16px; }
+      .doc table.cards, .doc table.cards tbody, .doc table.cards tr, .doc table.cards td { display: block; width: auto; }
+      .doc table.cards { margin: 0 0 24px; }
+      .doc table.cards td { margin-bottom: 16px; }
     }
   </style>
 </head>
