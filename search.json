@@ -1,5 +1,6 @@
 ---
 layout: null
+sitemap: false
 ---
 [{% assign docs = site.pages | where_exp: "p", "p.path contains '.md'" %}{% for p in docs %}
   {"url": {{ p.url | relative_url | jsonify }}, "title": {% if p.name == "README.md" %}{{ site.title | jsonify }}{% else %}{{ p.title | default: p.name | jsonify }}{% endif %}, "content": {{ p.content | jsonify }}}{% unless forloop.last %},{% endunless %}{% endfor %}

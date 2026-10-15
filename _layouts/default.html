@@ -3,9 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if page.url != '/' and page.title %}{{ page.title }} | {% endif %}{{ site.title }}</title>
-  <meta name="description" content="{{ site.description }}">
+  {%- comment -%} 페이지별 제목과 설명은 _config.yml의 defaults에서 정한다. {%- endcomment -%}
+  {%- assign page_title = page.seo_title | default: page.title | default: site.title -%}
+  {%- if page.url == '/' -%}{%- assign full_title = page_title -%}{%- else -%}{%- capture full_title -%}{{ page_title }} | {{ site.title }}{%- endcapture -%}{%- endif -%}
+  {%- assign page_desc = page.description | default: site.description -%}
+  <title>{{ full_title }}</title>
+  <meta name="description" content="{{ page_desc | escape }}">
+  <link rel="canonical" href="{{ page.url | absolute_url }}">
+  <meta property="og:type" content="{% if page.url == '/' %}website{% else %}article{% endif %}">
+  <meta property="og:site_name" content="{{ site.title }}">
+  <meta property="og:locale" content="ko_KR">
+  <meta property="og:title" content="{{ full_title | escape }}">
+  <meta property="og:description" content="{{ page_desc | escape }}">
+  <meta property="og:url" content="{{ page.url | absolute_url }}">
+  <meta property="og:image" content="{{ '/docs/images/og.png' | absolute_url }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="claude-code-mods 로고와 입력창 화면 예시">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ full_title | escape }}">
+  <meta name="twitter:description" content="{{ page_desc | escape }}">
+  <meta name="twitter:image" content="{{ '/docs/images/og.png' | absolute_url }}">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/png" href="{{ '/docs/images/favicon.png' | relative_url }}">
+  <link rel="apple-touch-icon" href="{{ '/docs/images/logo.png' | relative_url }}">
   <script>
     // 고른 테마가 있으면 그리기 전에 먼저 적용해 깜빡임을 막는다.
     try { var t = localStorage.getItem('theme'); if (t) { document.documentElement.setAttribute('data-theme', t); } } catch (e) {}
@@ -16,6 +38,7 @@
   <style>
     /* 무채색 문서 화면. 처음에는 시스템 설정을 따르고, 헤더 버튼으로 고르면 data-theme 으로 고정한다. */
     :root {
+      color-scheme: light;
       --bg: #ffffff;
       --bg-raise: #fafafa;
       --line: #ececec;
@@ -37,6 +60,7 @@
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
+        color-scheme: dark;
         --bg: #050505;
         --bg-raise: #0c0c0c;
         --line: #1c1c1c;
@@ -58,6 +82,7 @@
       }
     }
     :root[data-theme="dark"] {
+      color-scheme: dark;
       --bg: #050505;
       --bg-raise: #0c0c0c;
       --line: #1c1c1c;

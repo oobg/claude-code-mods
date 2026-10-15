@@ -1,8 +1,13 @@
 # GitHub Pages 설정. 저장소 루트를 사이트로 쓴다: README.md가 첫 화면, docs/*.md가 모드 문서다.
 # 화면은 _layouts/default.html이 헤더, 사이드바, 목차가 있는 문서 화면으로 그린다. search.json은 검색 창이 읽는 색인이다.
+# 페이지별 제목(seo_title)과 설명(description)은 아래 defaults에서 정한다. 마크다운에 머리말을 넣으면 GitHub 화면에 표로 보이기 때문이다.
 title: claude-code-mods
-description: Claude Code 입력창 주변에 기능을 추가하는 모드 모음
+description: Claude Code 입력창 주변에 기능을 더하는 플러그인 모음입니다.
 lang: ko
+url: https://oobg.github.io
+baseurl: /claude-code-mods
+plugins:
+  - jekyll-sitemap
 exclude:
   - mods
   - demo
@@ -12,3 +17,28 @@ defaults:
       path: ""
     values:
       layout: default
+  - scope:
+      path: "README.md"
+    values:
+      seo_title: "claude-code-mods: Claude Code 입력창 모드 모음"
+      description: "Claude Code 입력창 주변에 기능을 더하는 플러그인 모음입니다. 다음 요청 제안, 자주 쓰는 문구 프리셋, 입력창 아래 대시보드, Finder 파일 붙여넣기와 Cmd+Z 되돌리기를 제공하며, 필요한 모드만 골라 설치할 수 있습니다."
+  - scope:
+      path: "docs/next-prompts.md"
+    values:
+      seo_title: "next-prompts: 다음 요청 제안"
+      description: "Claude Code 플러그인 next-prompts는 답변이 끝나면 다음 요청 2~3개를 입력창 위에 제안합니다. $1을 입력하거나 번호를 클릭해 입력창에 넣고, 문구를 클릭하면 바로 보냅니다."
+  - scope:
+      path: "docs/quick-replies.md"
+    values:
+      seo_title: "quick-replies: 자주 쓰는 문구 프리셋"
+      description: "Claude Code 플러그인 quick-replies는 자주 쓰는 문구를 전역 또는 저장소별 프리셋으로 저장하고, 입력창에 $4처럼 번호를 입력해 불러옵니다. 프리셋 편집도 입력창에서 할 수 있습니다."
+  - scope:
+      path: "docs/dashboard.md"
+    values:
+      seo_title: "dashboard: 입력창 아래 상태 대시보드"
+      description: "Claude Code 플러그인 dashboard는 입력창 아래에 모델, 컨텍스트 사용률과 토큰 수, 5시간과 7일 사용 한도, Git 브랜치를 표시합니다. 표시 모양과 색은 명령으로 변경할 수 있습니다."
+  - scope:
+      path: "docs/key-assist.md"
+    values:
+      seo_title: "key-assist: 파일 붙여넣기와 Cmd+Z"
+      description: "Claude Code 플러그인 key-assist는 Finder에서 복사한 파일을 입력창에 붙여넣으면 이름을 @경로 멘션으로 바꿉니다. Cmd+Z를 입력 되돌리기 기능에 연결하며, macOS 전용입니다."
