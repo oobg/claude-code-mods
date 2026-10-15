@@ -69,7 +69,10 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 </tr>
 <tr>
 <td colspan="2" valign="top">
-<a href="./docs/split-diff.md"><img alt="split-diff: Edit 결과를 원래 내용과 바뀐 내용으로 나눠 좌우에 표시한다" src="./docs/images/showcase/split-diff-dark.png" width="100%"></a>
+<a href="./docs/split-diff.md"><picture>
+<source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/split-diff-dark.png">
+<img alt="split-diff: Edit 결과를 원래 내용과 바뀐 내용으로 나눠 좌우에 표시한다" src="./docs/images/showcase/split-diff-light.png" width="100%">
+</picture></a>
 <br><a href="./docs/split-diff.md"><b>split-diff</b></a><br>
 <sub>터미널 폭이 120칸 이상이면 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어는 더 밝은 색으로 강조합니다</sub>
 </td>

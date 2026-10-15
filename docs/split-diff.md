@@ -4,7 +4,10 @@
 
 > 터미널 폭이 120칸 이상이면 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어는 더 밝은 색으로 강조합니다.
 
-<p><img alt="split-diff: Edit 결과를 원래 내용과 바뀐 내용으로 나눠 좌우에 표시한다" src="./images/showcase/split-diff-dark.png" width="100%"></p>
+<p><picture>
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/split-diff-dark.png">
+<img alt="split-diff: Edit 결과를 원래 내용과 바뀐 내용으로 나눠 좌우에 표시한다" src="./images/showcase/split-diff-light.png" width="100%">
+</picture></p>
 
 | 항목 | 값 |
 | --- | --- |
