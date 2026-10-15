@@ -8,8 +8,13 @@
   <link rel="icon" type="image/png" href="{{ '/docs/images/favicon.png' | relative_url }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+  <script>
+    // 고른 테마가 있으면 그리기 전에 먼저 적용해 깜빡임을 막는다.
+    try { var t = localStorage.getItem('theme'); if (t) { document.documentElement.setAttribute('data-theme', t); } } catch (e) {}
+  </script>
   <style>
-    /* 색은 README 장면과 같은 체계다. 다크는 거의 검은 바탕에 연보라 포인트, 라이트는 시스템 설정을 따른다. */
+    /* 색은 README 장면과 같은 체계다. 다크는 거의 검은 바탕에 연보라 포인트다.
+       처음에는 시스템 설정을 따르고, 헤더의 전환 버튼으로 고르면 data-theme 으로 고정한다. */
     :root {
       --bg: #ffffff;
       --bg-soft: #f6f6f8;
@@ -25,7 +30,7 @@
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --bg: #0d0d0d;
         --bg-soft: #131315;
         --panel: #1b1b1b;
@@ -39,6 +44,20 @@
         --code-bg: #17171a;
         --shadow: none;
       }
+    }
+    :root[data-theme="dark"] {
+      --bg: #0d0d0d;
+      --bg-soft: #131315;
+      --panel: #1b1b1b;
+      --line: #26262b;
+      --text: #f2f2f4;
+      --text-soft: #c4c4cc;
+      --text-dim: #85858f;
+      --accent: #b1b9f9;
+      --accent-soft: rgba(177, 185, 249, 0.12);
+      --claude: #d77757;
+      --code-bg: #17171a;
+      --shadow: none;
     }
     * { box-sizing: border-box; }
     html { scroll-padding-top: 80px; }
@@ -70,10 +89,21 @@
     .brand img { width: 30px; height: 30px; }
     .brand span { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 600; }
     .top nav { display: flex; gap: 4px; margin-left: auto; }
+    .tools { display: flex; align-items: center; gap: 4px; padding-left: 12px; border-left: 1px solid var(--line); }
+    .icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; border: 0; background: none; color: var(--text-soft); cursor: pointer; }
+    .icon:hover { color: var(--text); background: var(--panel); }
+    .icon svg { width: 20px; height: 20px; fill: currentColor; }
+    .icon .moon { display: none; }
+    :root[data-theme="dark"] .icon .sun { display: none; }
+    :root[data-theme="dark"] .icon .moon { display: inline; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .icon .sun { display: none; }
+      :root:not([data-theme="light"]) .icon .moon { display: inline; }
+    }
     .top nav a { color: var(--text-soft); font-size: 14px; padding: 6px 12px; border-radius: 8px; }
     .top nav a:hover { color: var(--text); background: var(--panel); text-decoration: none; }
     .top nav a.on { color: var(--accent); background: var(--accent-soft); }
-    .menu { display: none; margin-left: auto; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px; }
+    .menu { display: none; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px; }
 
     /* 세 칸 배치 */
     .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr) 220px; max-width: 1360px; margin: 0 auto; }
@@ -134,6 +164,7 @@
       .side { display: none; position: fixed; top: 64px; left: 0; right: 0; z-index: 9; height: auto; max-height: calc(100vh - 64px); background: var(--bg); border-bottom: 1px solid var(--line); }
       .side.open { display: block; }
       .top nav { display: none; }
+      .tools { margin-left: auto; border-left: 0; padding-left: 0; }
       .menu { display: block; }
       main { padding: 28px 18px 72px; }
       .home .doc table:first-of-type, .home .doc table:first-of-type tbody, .home .doc table:first-of-type tr, .home .doc table:first-of-type td { display: block; width: auto; }
@@ -150,9 +181,18 @@
     <nav>
       <a href="{{ base }}/"{% if page.url == '/' %} class="on"{% endif %}>소개</a>
       {% for m in mods %}{% assign kv = m | split: "|" %}<a href="{{ base }}/docs/{{ kv[0] }}.html"{% if page.url contains kv[0] %} class="on"{% endif %}>{{ kv[0] }}</a>
-      {% endfor %}<a href="https://github.com/oobg/claude-code-mods">GitHub</a>
+      {% endfor %}
     </nav>
-    <button class="menu" type="button" aria-expanded="false" aria-controls="side">메뉴</button>
+    <div class="tools">
+      <button class="icon theme" type="button" aria-label="다크/라이트 전환" title="다크/라이트 전환">
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0-5a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Zm0 17a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1ZM3 11h1a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2Zm17 0h1a1 1 0 1 1 0 2h-1a1 1 0 1 1 0-2ZM5.6 4.2l.7.7a1 1 0 0 1-1.4 1.4l-.7-.7a1 1 0 0 1 1.4-1.4Zm12.8 12.8.7.7a1 1 0 0 1-1.4 1.4l-.7-.7a1 1 0 0 1 1.4-1.4Zm1.4-12.8a1 1 0 0 1 0 1.4l-.7.7a1 1 0 1 1-1.4-1.4l.7-.7a1 1 0 0 1 1.4 0ZM6.3 17.7a1 1 0 0 1 0 1.4l-.7.7a1 1 0 0 1-1.4-1.4l.7-.7a1 1 0 0 1 1.4 0Z"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 0 1 9.5 3a.6.6 0 0 0-.8-.7A10 10 0 1 0 21.7 15.3a.6.6 0 0 0-.7-.8Z"/></svg>
+      </button>
+      <a class="icon" href="https://github.com/oobg/claude-code-mods" aria-label="GitHub 저장소" title="GitHub 저장소">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
+      <button class="menu" type="button" aria-expanded="false" aria-controls="side">메뉴</button>
+    </div>
   </header>
   <div class="layout">
     <aside class="side" id="side">
@@ -220,6 +260,22 @@
       }
       window.addEventListener('scroll', mark, { passive: true });
       mark();
+      // 테마 전환. 장면 이미지(<picture>)도 고른 테마 쪽을 보이게 한다.
+      function applyTheme(theme) {
+        document.querySelectorAll('picture source[media*="prefers-color-scheme"]').forEach(function (s) {
+          if (!s.dataset.media) { s.dataset.media = s.getAttribute('media'); }
+          s.setAttribute('media', theme ? (theme === 'dark' ? 'all' : 'not all') : s.dataset.media);
+        });
+      }
+      var root = document.documentElement;
+      applyTheme(root.getAttribute('data-theme'));
+      document.querySelector('.theme').addEventListener('click', function () {
+        var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var next = dark ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+        applyTheme(next);
+      });
       // 좁은 화면에서는 메뉴 버튼으로 사이드바를 연다.
       var menu = document.querySelector('.menu');
       var side = document.getElementById('side');
