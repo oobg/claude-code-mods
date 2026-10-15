@@ -365,6 +365,8 @@
       // .md 링크를 사이트의 .html로 바꾼다.
       doc.querySelectorAll('a[href]').forEach(function (a) {
         var href = a.getAttribute('href');
+        // LICENSE는 Pages에서 내려받기로 열리므로 GitHub의 파일 화면으로 보낸다.
+        if (/^(\.\/|\.\.\/)?LICENSE$/.test(href)) { a.setAttribute('href', 'https://github.com/oobg/claude-code-mods/blob/main/LICENSE'); return; }
         if (!/^[a-z]+:/i.test(href) && /\.md(#.*)?$/.test(href)) {
           a.setAttribute('href', href.replace(/(^|\/)README\.md/, '$1index.html').replace(/\.md(#|$)/, '.html$1'));
         }
