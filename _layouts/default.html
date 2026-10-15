@@ -266,8 +266,8 @@
 {{ content }}
       </article>
     </main>
-    <aside class="aside" aria-label="이 페이지">
-      <p class="aside-title">이 페이지</p>
+    <aside class="aside" aria-label="목차">
+      <p class="aside-title">목차</p>
       <ul id="toc"></ul>
       <div class="actions">
         <button type="button" class="to-top"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>맨 위로</button>
@@ -439,7 +439,7 @@
         if (!q) { hits = hits.filter(function (h) { return h.title.indexOf('›') < 0; }); }
         hits.sort(function (a, b) { return a.rank - b.rank; });
         hits = hits.slice(0, 12); active = 0;
-        if (!hits.length) { results.innerHTML = '<li class="empty">찾는 내용이 없습니다</li>'; return; }
+        if (!hits.length) { results.innerHTML = '<li class="empty">검색 결과가 없습니다</li>'; return; }
         var re = q ? new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig') : null;
         results.innerHTML = hits.map(function (h, i) {
           var snip = esc(h.snip); if (re) { snip = snip.replace(re, function (m) { return '<mark>' + m + '</mark>'; }); }
