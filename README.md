@@ -4,7 +4,7 @@
 
 <h1 align="center">claude-code-mods</h1>
 
-<p align="center">Claude Code 입력창 주변에 기능을 더하는 모드 모음</p>
+<p align="center">Claude Code 입력창과 도구 결과에 기능을 더하는 모드 모음</p>
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
@@ -26,7 +26,7 @@
   <a href="https://oobg.github.io/claude-code-mods/"><b>문서 사이트</b></a>
 </p>
 
-claude-code-mods는 Claude Code 입력창 주변에 기능을 추가하는 모드 모음입니다. 입력창 위에서는 다음에 보낼 요청을 제안하고, 입력창 아래에서는 세션 상태를 표시합니다. 입력창에서 파일을 붙여넣거나 작성 중인 내용을 되돌리는 일도 편해집니다. **모드는 필요한 것만 골라 설치하면 되고, 따로 설치할 프로그램은 없습니다.**
+claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추가하는 모드 5개를 모은 저장소입니다. 입력창 위에서는 다음 요청을 제안하고 자주 쓰는 문구 프리셋을 표시하며, 입력창 아래에서는 세션 상태를 보여 줍니다. Finder에서 복사한 파일을 붙여넣으면 파일 이름을 `@경로` 멘션으로 바꾸고, Cmd+Z로 입력 내용을 되돌릴 수 있습니다. 넓은 터미널에서는 Edit와 Write 결과의 diff를 좌우로 비교할 수 있습니다. **모드는 필요한 것만 골라 설치하면 되고, 따로 설치할 프로그램은 없습니다.**
 
 ## 주요 기능
 
