@@ -4,13 +4,13 @@
     "name": "oobg"
   },
   "metadata": {
-    "description": "Claude Code 입력창 주변을 손보는 모드 모음. 다음 제안, $번호 프리셋, 두 줄 대시보드, 파일 경로 붙여넣기와 Cmd+Z 되돌리기"
+    "description": "Claude Code 입력창 주변에 기능을 추가하는 모드 모음입니다. 다음 제안, $번호 프리셋, 두 줄 대시보드, 파일 경로 붙여넣기와 Cmd+Z 되돌리기를 담았습니다"
   },
   "plugins": [
     {
       "name": "next-prompts",
       "source": "./mods/next-prompts",
-      "description": "턴이 끝나면 다음에 보낼 만한 프롬프트 2~3개를 입력창 위에 제안한다. 입력창에 $1처럼 쳐서 그 자리에 넣거나, 번호를 클릭해 초안으로 넣거나, 문구를 클릭해 바로 보낸다",
+      "description": "턴이 끝나면 다음에 보낼 만한 프롬프트 2~3개를 입력창 위에 제안합니다. 입력창에 $1처럼 입력하면 해당 문구로 바뀝니다. 번호를 클릭하면 초안으로 넣고, 문구를 클릭하면 바로 보냅니다",
       "keywords": [
         "next-prompts",
         "suggestions",
@@ -24,7 +24,7 @@
     {
       "name": "quick-replies",
       "source": "./mods/quick-replies",
-      "description": "전역과 로컬(저장소별) 프리셋 문구를 입력창 위 버튼으로 두고, 입력창에 $4처럼 쳐서 그 자리에 넣거나 클릭해 바로 보낸다. /스킬도 실행하고, $e로 편집 화면을 열고 $0으로 프리셋을 한 줄로 접는다",
+      "description": "전역과 로컬(저장소별) 프리셋 문구를 입력창 위에 버튼으로 표시합니다. $4처럼 입력하면 해당 문구로 바뀌고, 문구를 클릭하면 바로 보냅니다. /스킬도 실행할 수 있으며, $e로 편집 화면을 열거나 $0으로 프리셋을 한 줄로 접을 수 있습니다",
       "keywords": [
         "quick-replies",
         "presets",
@@ -39,7 +39,7 @@
     {
       "name": "dashboard",
       "source": "./mods/dashboard",
-      "description": "모델, 컨텍스트, 요금, 사용 한도(Fable 포함), 브랜치를 입력창 아래에 그린다. /dashboard-style과 /dashboard-theme으로 모양과 색을 바꾼다",
+      "description": "모델, 컨텍스트, 요금, 사용 한도(Fable 포함), 브랜치를 입력창 아래에 표시합니다. /dashboard-style과 /dashboard-theme으로 모양과 색을 바꿉니다",
       "keywords": [
         "dashboard",
         "statusline",
@@ -54,7 +54,7 @@
     {
       "name": "key-assist",
       "source": "./mods/key-assist",
-      "description": "Finder에서 복사한 파일을 입력창에 붙여넣으면 파일 이름 대신 @경로 멘션으로 바꿔 넣고, Cmd+Z로 입력창을 되돌리게 한다. macOS 전용",
+      "description": "Finder에서 복사한 파일을 입력창에 붙여넣으면 파일 이름이 @경로 멘션으로 바뀝니다. Cmd+Z로 입력 내용을 되돌릴 수도 있습니다. macOS 전용",
       "keywords": [
         "key-assist",
         "keyboard-shortcuts",
