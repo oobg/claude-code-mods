@@ -498,10 +498,21 @@
       });
 
       // 테마 전환. 장면 이미지(<picture>)도 고른 테마 쪽을 보이게 한다.
+      // 브라우저는 source의 media를 바꿔도 그림을 다시 고르지 않을 때가 있어, img 주소를 직접 바꾼다.
+      // 테마를 고르면 다크 source를 끄고 img에 고른 쪽 그림을 넣는다. 고르지 않았으면 시스템 설정을 따르게 되돌린다.
       function applyTheme(theme) {
-        document.querySelectorAll('picture source[media*="prefers-color-scheme"]').forEach(function (s) {
-          if (!s.dataset.media) { s.dataset.media = s.getAttribute('media'); }
-          s.setAttribute('media', theme ? (theme === 'dark' ? 'all' : 'not all') : s.dataset.media);
+        document.querySelectorAll('picture').forEach(function (pic) {
+          var s = pic.querySelector('source[media*="prefers-color-scheme"]');
+          var img = pic.querySelector('img');
+          if (!s || !img) { return; }
+          if (!s.dataset.media) { s.dataset.media = s.getAttribute('media'); s.dataset.srcset = s.getAttribute('srcset'); img.dataset.light = img.getAttribute('src'); }
+          if (theme) {
+            s.setAttribute('media', 'not all');
+            img.setAttribute('src', theme === 'dark' ? s.dataset.srcset : img.dataset.light);
+          } else {
+            s.setAttribute('media', s.dataset.media);
+            img.setAttribute('src', img.dataset.light);
+          }
         });
       }
       applyTheme(root.getAttribute('data-theme'));
