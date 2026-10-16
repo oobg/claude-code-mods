@@ -263,6 +263,36 @@ describe('quick-replies', () => {
     await ui.unmount()
   })
 
+  test('다른 세션이 프리셋을 고치면 이미 열려 있는 세션의 띠도 잠시 뒤 따라 바뀐다', async ($, on) => {
+    // 다른 세션과 나눠 쓰는 저장소 파일. 테스트가 직접 고쳐 다른 세션이 쓴 것처럼 한다.
+    // mock.store는 받은 값을 복사해 두므로 저장소를 직접 답한다.
+    const shared: Record<string, unknown> = { global: [{ id: 'g', text: '전역 문구' }] }
+    on('store.get', (_$, e) => ({ value: shared[e.key] }))
+    on('store.set', (_$, e) => {
+      shared[e.key] = e.value
+      return { value: undefined }
+    })
+    on('session.cwd', () => ({ value: '/repo/one' }))
+    on('process.run', () => ({ deny: 'not a git repository' }))
+    on('model.complete', () => ({ value: { isAnswered: false, text: '', usage: {} } as never }))
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-band</Text>
+    })
+    on('session.start', () => ({ cwd: '/repo/one' }) as never)
+    const clock = mock.clock(on)
+    await $.session.start({ source: 'startup', cwd: '/repo/one' } as never)
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect(await ui.find({ type: 'Button', text: '전역 문구' })).toBeDefined()
+
+    shared.global = [{ id: 'g', text: '전역 문구' }, { id: 'g2', text: '다른 세션에서 넣은 문구' }]
+    shared['repo:/repo/one'] = [{ id: 'p', text: '같은 저장소 다른 세션 문구' }]
+    await clock.advance(5000)
+    expect(await ui.find({ type: 'Button', text: '다른 세션에서 넣은 문구' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: '같은 저장소 다른 세션 문구' })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('다른 모드가 띠 틀에 넣은 줄 아래에 프리셋 줄을 끼워 넣는다', async ($, on) => {
     inRepo(on, '/repo/one', {}, false)
     on('state.get', { plugin: 'next-prompts', key: 'suggestions' } as never, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
