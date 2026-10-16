@@ -43,10 +43,10 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <td width="50%" valign="top">
 <a href="./docs/quick-replies.md"><picture>
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/preset-dark.gif">
-<img alt="quick-replies: 입력창에 $1과 스페이스를 치면 그 자리에 1번 프리셋 문구가 들어간다" src="./docs/images/showcase/preset-light.gif" width="100%">
+<img alt="quick-replies: 입력창에 $1을 치고 스페이스를 누르면 $1이 1번 프리셋 문구로 바뀐다" src="./docs/images/showcase/preset-light.gif" width="100%">
 </picture></a>
 <br><a href="./docs/quick-replies.md"><b>quick-replies</b></a><br>
-<sub>자주 쓰는 문구를 전역 또는 저장소별 프리셋으로 저장합니다. 입력창에 <code>$4</code>처럼 번호를 입력하고 스페이스를 누르면 해당 문구로 바뀝니다</sub>
+<sub>자주 쓰는 문구를 전역 또는 저장소별 프리셋으로 저장합니다. 입력창에 <code>$4</code>를 치고 스페이스를 누르면 해당 문구로 바뀝니다</sub>
 </td>
 </tr>
 <tr>
@@ -136,10 +136,10 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 <td width="50%" valign="top">
 <a href="./docs/quick-replies.md"><picture>
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/substitute-dark.gif">
-<img alt="입력창에 $2를 입력하고 스페이스를 누르면 그 자리가 2번 문구로 바뀐다" src="./docs/images/showcase/substitute-light.gif" width="100%">
+<img alt="입력창에 $2를 치고 스페이스를 누르면 $2가 2번 문구로 바뀐다" src="./docs/images/showcase/substitute-light.gif" width="100%">
 </picture></a>
 <br><a href="./docs/quick-replies.md"><b><code>$2</code> 입력</b></a><br>
-<sub>입력창에 <code>$2</code>를 입력하고 스페이스를 누르면 그 자리가 2번 문구로 바뀝니다. 문장 중간에서도 사용할 수 있습니다</sub>
+<sub>입력창에 <code>$2</code>를 치고 스페이스를 누르면 <code>$2</code>가 2번 문구로 바뀝니다. 문장 중간에서도 사용할 수 있습니다</sub>
 </td>
 <td width="50%" valign="top">
 <a href="./docs/quick-replies.md"><picture>
