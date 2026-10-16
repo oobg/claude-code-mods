@@ -174,7 +174,7 @@ describe('next-prompts', () => {
       end: 2,
       inputText: ' ',
     })
-    expect(typed.text).toBe(first)
+    expect(typed.text).toBe(`${first} `)
 
     // 120ms 뒤에는 둘째 줄이 나오기 시작한다.
     await clock.advance(120)
@@ -262,8 +262,8 @@ describe('next-prompts', () => {
         inputText: char,
       })
     expect(await type('끝나면 $', '2')).toEqual({ text: '끝나면 $2', cursor: 6 })
-    expect(await type('끝나면 $2', ' ')).toEqual({ text: '끝나면 커밋해줘', cursor: 8 })
-    expect(await type('$1', ' ')).toEqual({ text: '테스트 돌려줘', cursor: 7 })
+    expect(await type('끝나면 $2', ' ')).toEqual({ text: '끝나면 커밋해줘 ', cursor: 9 })
+    expect(await type('$1', ' ')).toEqual({ text: '테스트 돌려줘 ', cursor: 8 })
     expect(await type('a$1', ' ')).toEqual({ text: 'a$1 ', cursor: 4 })
     expect(await type('$3', ' ')).toEqual({ text: '$3 ', cursor: 3 })
     expect(await type('$12', ' ')).toEqual({ text: '$12 ', cursor: 4 })

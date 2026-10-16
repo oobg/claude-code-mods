@@ -413,7 +413,7 @@ export const register: Register = on => {
       const presets = await current($)
       const reply = [...presets.global, ...presets.project][typedN.n - 1 - (await suggestionCount($))]
       if (reply !== undefined) {
-        return next({ ...e, start: typedN.start, inputText: reply.text })
+        return next({ ...e, start: typedN.start, inputText: `${reply.text} ` })
       }
     }
     return next(e)

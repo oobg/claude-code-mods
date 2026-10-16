@@ -115,7 +115,7 @@ export const register: Register = on => {
       const list = (await read($, suggestions)).filter(item => typeof item === 'string')
       const text = list[typed.n - 1]
       if (text !== undefined) {
-        return next({ ...e, start: typed.start, inputText: text })
+        return next({ ...e, start: typed.start, inputText: `${text} ` })
       }
     }
     return next(e)
