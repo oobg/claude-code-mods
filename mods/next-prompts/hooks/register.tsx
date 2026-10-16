@@ -166,20 +166,24 @@ export const register: Register = on => {
               <Text color={ACCENT}>{numberLabel(i + 1)}</Text>
             </Button>
           )}
-          <Button
-            key={`go:${i + 1}`}
-            label={text}
-            plain
-            onPress={async () => {
-              // 이 모드가 보낸 프롬프트에는 자기 prompt.submit 훅이 돌지 않으니, 그 일을 여기서 한다(clear가 generation을 올린다).
-              await clear()
-              await update($, lastPrompt, () => text)
-              await $.prompt.submit({ text, asUser: true })
-            }}
-          >
-            {/* 다 나올 때까지는 흐리게, 다 나오면 보통 색으로 그려 페이드처럼 보이게 한다. */}
-            <Text dimColor={isTyping}>{isTyping ? chars(text).slice(0, count).join('') : text}</Text>
-          </Button>
+          {/* 문구가 두 줄 이상이면 터미널의 포인터 반전이 첫 줄에만 닿는다. 문구만 감싼 Box에 hover를 걸어 모든 줄을 함께 반전한다. */}
+          <Box key={`go-box:${i + 1}`}>
+            <Button
+              key={`go:${i + 1}`}
+              label={text}
+              plain
+              hover={{ inverse: true }}
+              onPress={async () => {
+                // 이 모드가 보낸 프롬프트에는 자기 prompt.submit 훅이 돌지 않으니, 그 일을 여기서 한다(clear가 generation을 올린다).
+                await clear()
+                await update($, lastPrompt, () => text)
+                await $.prompt.submit({ text, asUser: true })
+              }}
+            >
+              {/* 다 나올 때까지는 흐리게, 다 나오면 보통 색으로 그려 페이드처럼 보이게 한다. */}
+              <Text dimColor={isTyping}>{isTyping ? chars(text).slice(0, count).join('') : text}</Text>
+            </Button>
+          </Box>
         </Box>
       )
     }

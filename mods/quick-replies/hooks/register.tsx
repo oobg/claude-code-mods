@@ -403,24 +403,28 @@ export const register: Register = on => {
                 <Text color={ACCENT}>{numberLabel(number)}</Text>
               </Button>
             )}
-            <Button
-              key={`send:${reply.id}`}
-              label={label}
-              plain
-              onPress={() => {
-                void send($, reply.text)
-              }}
-            >
-              {isCommand ? (
-                // 스킬이나 슬래시 명령은 명령 부분만 번호와 같은 색으로 칠해 일반 문장과 구분한다.
-                <Text>
-                  <Text color={ACCENT}>{prefix}</Text>
-                  {label.slice(prefix.length)}
-                </Text>
-              ) : (
-                label
-              )}
-            </Button>
+            {/* 문구가 두 줄 이상이면 터미널의 포인터 반전이 첫 줄에만 닿는다. 문구만 감싼 Box에 hover를 걸어 모든 줄을 함께 반전한다. */}
+            <Box key={`send-box:${reply.id}`}>
+              <Button
+                key={`send:${reply.id}`}
+                label={label}
+                plain
+                hover={{ inverse: true }}
+                onPress={() => {
+                  void send($, reply.text)
+                }}
+              >
+                {isCommand ? (
+                  // 스킬이나 슬래시 명령은 명령 부분만 번호와 같은 색으로 칠해 일반 문장과 구분한다.
+                  <Text>
+                    <Text color={ACCENT}>{prefix}</Text>
+                    {label.slice(prefix.length)}
+                  </Text>
+                ) : (
+                  label
+                )}
+              </Button>
+            </Box>
           </Box>
         )
       }
