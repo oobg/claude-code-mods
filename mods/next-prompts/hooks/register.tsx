@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Reveal, Suggestions } from '../types'
-import { MAX_NUMBER, numberLabel, typedNumber, withBandSection } from './band'
+import { expandNumbers, numberLabel, typedNumber, withBandSection } from './band'
 import { MIN_ANSWER_CHARS, SYSTEM, buildPrompt, parseSuggestions } from './suggest'
 
 // 띠 안의 순서. quick-replies 프리셋 줄(20) 위에 온다.
@@ -89,22 +89,33 @@ export const register: Register = on => {
   })
 
   // 프롬프트를 보내면(슬래시 명령 포함) 지난 제안을 지우고, 다음 제안의 재료로 그 문장을 남긴다.
+  // 사람이 입력창에서 보낸 글에 남은 `$번호`(스페이스 없이 Enter)는 그 번호의 제안으로 바꿔 보낸다.
+  // 제안은 보낸 뒤에 비운다. quick-replies가 이 훅 안쪽에서 돌 때도 프리셋 번호를 셀 제안 개수가 남아 있어야 하기 때문이다.
   on('prompt.submit', async ($, e, next) => {
     generation += 1
-    await update($, suggestions, () => [])
-    await update($, reveal, () => [])
-    await update($, lastPrompt, () => e.text)
-    return next(e)
+    const list = (await read($, suggestions)).filter(item => typeof item === 'string')
+    const text = e.origin?.kind === 'composer' ? expandNumbers(e.text, n => list[n - 1]) : e.text
+    try {
+      const result = await next(text === e.text ? e : { ...e, text })
+      // 막혀서 들어가지 않은 글은 마지막 요청으로 남기지 않는다.
+      if (result.drop === undefined) {
+        await update($, lastPrompt, () => result.text ?? text)
+      }
+      return result
+    } finally {
+      await update($, suggestions, () => [])
+      await update($, reveal, () => [])
+    }
   })
 
-  // 입력창에 `$2`처럼 치면 그 자리를 2번 제안으로 바꾼다. 제안은 늘 $1부터라 다른 모드의 번호를 몰라도 된다.
+  // 입력창에 `$2 `처럼 번호 뒤에 스페이스를 치면 그 자리를 2번 제안으로 바꾼다. 제안은 늘 $1부터라 다른 모드의 번호를 몰라도 된다.
   on('prompt.edit', async ($, e, next) => {
-    const n = typedNumber(e)
-    if (n !== undefined) {
+    const typed = typedNumber(e)
+    if (typed !== undefined) {
       const list = (await read($, suggestions)).filter(item => typeof item === 'string')
-      const text = list[n - 1]
+      const text = list[typed.n - 1]
       if (text !== undefined) {
-        return next({ ...e, start: e.start - 1, inputText: text })
+        return next({ ...e, start: typed.start, inputText: text })
       }
     }
     return next(e)
@@ -147,25 +158,23 @@ export const register: Register = on => {
 
     // 제안 하나는 버튼 두 개다. 화면에는 흘려 쓰는 중인 글자만 보여도, 버튼이 넣고 보내는 것은 늘 전체 문구다.
     // 번호(`$1:`)는 클릭하면 입력창에 초안으로 넣기만 하고, 문구는 클릭하면 바로 보낸다.
-    // 입력창에 `$1`을 치면 번호를 클릭하지 않아도 그 자리에 들어간다(prompt.edit).
+    // 입력창에 `$1 `처럼 번호와 스페이스를 치면 번호를 클릭하지 않아도 그 자리에 들어간다(prompt.edit).
     // 다 나온 제안은 접지 않고 늘 전체 문구로 보인다(quick-replies의 0은 프리셋만 접는다). 닫기는 클릭으로만 한다.
     const pick = (text: string, i: number, count: number) => {
       const isTyping = count < chars(text).length
       return (
         <Box key={`item:${i + 1}`} flexDirection="row" columnGap={1}>
-          {i < MAX_NUMBER && (
-            <Button
-              key={`pick:${i + 1}`}
-              label={numberLabel(i + 1)}
-              plain
-              onPress={async () => {
-                await $.prompt.fill({ text })
-                await clear()
-              }}
-            >
-              <Text color={ACCENT}>{numberLabel(i + 1)}</Text>
-            </Button>
-          )}
+          <Button
+            key={`pick:${i + 1}`}
+            label={numberLabel(i + 1)}
+            plain
+            onPress={async () => {
+              await $.prompt.fill({ text })
+              await clear()
+            }}
+          >
+            <Text color={ACCENT}>{numberLabel(i + 1)}</Text>
+          </Button>
           {/* 문구가 두 줄 이상이면 터미널의 포인터 반전이 첫 줄에만 닿는다. 문구만 감싼 Box에 hover를 걸어 모든 줄을 함께 반전한다. */}
           <Box key={`go-box:${i + 1}`}>
             <Button

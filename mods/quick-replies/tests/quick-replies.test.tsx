@@ -86,28 +86,45 @@ describe('quick-replies', () => {
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
     expect((await ui.find({ key: 'edit' }))?.props?.label).toBe('$e: 편집')
     await ui.press({ key: 'edit' })
-    expect((await ui.find({ key: 'add-global' }))?.props?.hotkey).toBe('a')
+    expect((await ui.find({ key: 'add' }))?.props?.hotkey).toBe('o')
     expect((await ui.find({ key: 'select:default-0' }))?.props?.hotkey).toBe('1')
+    const keyOf = async (text: string) => String((await ui.find({ type: 'Button', text }))?.props?.key)
 
-    // a: 전역에 추가, l: 로컬에 추가
-    await ui.press({ key: 'add-global' })
+    // o: 커서가 없으면 전역에 추가한다.
+    await ui.press({ key: 'add' })
     await enter('커밋해줘')
-    await ui.press({ key: 'add-project' })
+    await ui.press({ key: 'add' })
     await enter('/ux-writing 문구 다듬어줘')
+    // 고른 뒤 m으로 로컬로 옮긴다.
+    await ui.press({ key: await keyOf('/ux-writing 문구 다듬어줘') })
+    expect((await ui.find({ key: 'add' }))?.props?.label).toBe('전역에 추가')
+    await ui.press({ key: 'act-move' })
+    // 커서가 로컬에 있으면 o는 로컬에 추가한다.
+    expect((await ui.find({ key: 'add' }))?.props?.label).toBe('로컬에 추가')
 
-    // 1로 고르고 e로 고쳐 쓰기
+    // 1로 고르고 i로 고쳐 쓰기
     await ui.press({ key: 'select:default-0' })
+    expect((await ui.find({ key: 'act-edit' }))?.props?.hotkey).toBe('i')
     await ui.press({ key: 'act-edit' })
     expect(filled.at(-1)).toBe('지금 진행상황')
     await enter('어디까지 했어?')
 
-    // 2를 골라 d로 지우기
+    // 2를 골라 dd로 지우기. 한 번 눌러서는 지우지 않는다. u로 되살리고 다시 지운다.
     await ui.press({ key: 'select:default-1' })
+    await ui.press({ key: 'act-delete' })
+    expect(await ui.find({ key: 'select:default-1' })).toBeDefined()
+    await ui.press({ key: 'act-delete' })
+    expect(await ui.find({ key: 'select:default-1' })).toBeUndefined()
+    await ui.press({ key: 'undo' })
+    expect(await ui.find({ key: 'select:default-1' })).toBeDefined()
+    expect(await ui.find({ key: 'undo' })).toBeUndefined()
+    await ui.press({ key: 'act-delete' })
     await ui.press({ key: 'act-delete' })
     expect(await ui.find({ key: 'select:default-1' })).toBeUndefined()
 
-    // 1을 골라 j로 아래로, m으로 로컬로
+    // 1을 골라 J로 아래로, m으로 로컬로
     await ui.press({ key: 'select:default-0' })
+    expect((await ui.find({ key: 'act-down' }))?.props?.label).toBe('J: 아래로')
     await ui.press({ key: 'act-down' })
     await ui.press({ key: 'act-move' })
 
@@ -211,7 +228,7 @@ describe('quick-replies', () => {
       return false
     }
     await ui.press({ key: 'edit' })
-    await ui.press({ key: 'add-global' })
+    await ui.press({ key: 'add' })
     await enter('방금 바꾼 코드에 테스트를 추가해줘')
     expect(await titleShown('테스트 추가')).toBe(true)
 
@@ -247,7 +264,7 @@ describe('quick-replies', () => {
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
     await ui.press({ key: 'edit' })
     expect(await ui.find({ type: 'Text', text: '다음 제안 줄' })).toBeUndefined()
-    expect(await ui.find({ key: 'add-global' })).toBeDefined()
+    expect(await ui.find({ key: 'add' })).toBeDefined()
     await ui.unmount()
   })
 
@@ -260,6 +277,17 @@ describe('quick-replies', () => {
     expect(await ui.find({ type: 'Button', text: '전역 문구' })).toBeDefined()
     expect(await ui.find({ type: 'Button', text: '저장소 하나 전용' })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: '로컬' })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('여러 줄 문구는 띠에서 한 줄로 잇고 폭을 넘으면 말줄임표로 자르며, 편집 화면에서는 전체를 보인다', async ($, on) => {
+    inRepo(on, '/repo/one', { global: [{ id: 'g', text: '첫 줄\n  둘째 줄' }] })
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    const send = await ui.find({ key: 'send:g' })
+    expect(send?.props?.label).toBe('첫 줄 둘째 줄')
+    expect((await ui.find({ type: 'Text', text: '첫 줄 둘째 줄' }))?.props?.wrap).toBe('truncate-end')
+    await ui.press({ key: 'edit' })
+    expect((await ui.find({ key: 'select:g' }))?.props?.label).toBe('첫 줄\n  둘째 줄')
     await ui.unmount()
   })
 
@@ -373,24 +401,71 @@ describe('quick-replies', () => {
     await ui.unmount()
   })
 
-  test('입력창에 `$3`을 치면 다음 제안 두 개 다음 번호인 첫 프리셋으로 바꾸고, 제안 번호는 건드리지 않는다', async ($, on) => {
+  test('입력창에 `$3 `을 치면 다음 제안 두 개 다음 번호인 첫 프리셋으로 바꾸고, 제안 번호는 건드리지 않는다', async ($, on) => {
     inRepo(on, '/repo/one')
     on('state.get', { plugin: 'next-prompts', key: 'suggestions' } as never, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
     on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
-    const type = (text: string, digit: string) =>
+    const type = (text: string, char: string) =>
       ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string; cursor: number }> }).edit({
         origin: { kind: 'composer' },
-        key: { key: digit },
+        key: { key: char },
         text,
         cursor: text.length,
         start: text.length,
         end: text.length,
-        inputText: digit,
+        inputText: char,
       })
-    expect((await type('그리고 $', '3')).text).toBe('그리고 지금 진행상황')
-    expect((await type('$', '4')).text).toBe('맞아 그렇게 진행해')
-    expect((await type('$', '1')).text).toBe('$1')
-    expect((await type('$', '5')).text).toBe('$5')
+    // 번호만 쳐서는 바뀌지 않고, 뒤에 스페이스를 쳐야 바뀐다. 친 스페이스는 남기지 않는다.
+    expect((await type('$', '3')).text).toBe('$3')
+    expect((await type('그리고 $3', ' ')).text).toBe('그리고 지금 진행상황')
+    expect((await type('$4', ' ')).text).toBe('맞아 그렇게 진행해')
+    expect((await type('$1', ' ')).text).toBe('$1 ')
+    expect((await type('$5', ' ')).text).toBe('$5 ')
+    expect((await type('a$3', ' ')).text).toBe('a$3 ')
+  })
+
+  test('스페이스 없이 `$번호`에서 바로 Enter를 눌러도 프리셋으로 바꿔 보내고, `/명령` 프리셋 하나면 명령으로 실행한다', async ($, on) => {
+    inRepo(on, '/repo/one', { global: [{ id: 'a', text: '지금 진행상황' }, { id: 'b', text: '/ux-writing 다듬어줘' }] })
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' } as never, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
+    const ran: { command: string; args: string }[] = []
+    on('command.list', () => ({ value: [{ name: 'ux-writing', description: '', source: 'user' }] as never }))
+    on('command.run', (_$, e) => {
+      ran.push({ command: e.command, args: e.args })
+      return { text: '' }
+    })
+    on('prompt.fill', () => ({ isFilled: true }) as never)
+    on('prompt.submit', (_$, e) => ({ text: e.text }))
+    const submit = (text: string) =>
+      ($.prompt as unknown as { submit: (e: unknown) => Promise<{ text?: string; drop?: string }> }).submit({ origin: { kind: 'composer' }, text, wait: false })
+    // 제안이 둘이라 프리셋은 $3부터다. $1, $2는 next-prompts의 몫이라 그대로 둔다.
+    expect((await submit('그리고 $3')).text).toBe('그리고 지금 진행상황')
+    expect((await submit('$1 다음 $3')).text).toBe('$1 다음 지금 진행상황')
+    expect((await submit('$9')).text).toBe('$9')
+    expect((await submit(' $4 ')).drop).toBe('/ux-writing 프리셋을 실행해요')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(ran).toEqual([{ command: 'ux-writing', args: '다듬어줘' }])
+  })
+
+  test('프리셋이 9개를 넘어도 모두 번호를 달고, `$12 `처럼 두 자리 번호로 고른다', async ($, on) => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ id: `g${i + 1}`, text: `문구 ${i + 1}` }))
+    inRepo(on, '/repo/one', { global: many })
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    expect((await ui.find({ key: 'fill:g12' }))?.props?.label).toBe('$12:')
+    await ui.unmount()
+    const type = (text: string, char: string) =>
+      ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string }> }).edit({
+        origin: { kind: 'composer' },
+        key: { key: char },
+        text,
+        cursor: text.length,
+        start: text.length,
+        end: text.length,
+        inputText: char,
+      })
+    expect((await type('$1', '2')).text).toBe('$12')
+    expect((await type('$12', ' ')).text).toBe('문구 12')
+    expect((await type('$1', ' ')).text).toBe('문구 1')
   })
 
   test('입력창에 `$0`을 치면 프리셋을 접고, `$e`를 치면 편집 화면을 연다. 친 글자는 남기지 않는다', async ($, on) => {
@@ -420,6 +495,84 @@ describe('quick-replies', () => {
 
   })
 
+  test('편집 화면은 vim처럼 j/k, gg/G로 커서를 옮기고 J/K로 순서를, dd로 지우고 u로 되살린다. 입력창 아래에 모드를 보인다', async ($, on) => {
+    inRepo(on, '/repo/one', { global: ['가', '나', '다'].map(text => ({ id: text, text })) })
+    on('prompt.fill', () => ({ isFilled: true }) as never)
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    on('ui.render', { component: 'PromptHint' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>{e.props.hint}</Text>
+    })
+    const type = async (...keys: string[]) => {
+      for (const key of keys) {
+        await ($.prompt as unknown as { edit: (e: unknown) => Promise<unknown> }).edit({
+          origin: { kind: 'composer' },
+          key: { key },
+          text: '',
+          cursor: 0,
+          start: 0,
+          end: 0,
+          inputText: key,
+        })
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
+    }
+    const band = () => $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })
+    const hint = async () => {
+      const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', component: 'PromptHint', props: { isDraft: false, isWorking: false, hint: '? for shortcuts' } } as never)
+      const text = (await ui.findAll({ type: 'Text' })).map(t => (t.children ?? []).join('')).join('')
+      await ui.unmount()
+      return text
+    }
+    // 커서가 있는 줄의 문구와, 전역 목록의 순서.
+    const state = async () => {
+      const ui = await band()
+      const rows = (await ui.findAll({ type: 'Box' })).filter(b => String(b.props?.key).startsWith('row:'))
+      const order = rows.map(r => String(r.props?.key).slice('row:'.length))
+      const marked = rows.find(r => JSON.stringify(r.children).includes('▸'))
+      await ui.unmount()
+      return { cursor: marked === undefined ? null : String(marked.props?.key).slice('row:'.length), order }
+    }
+
+    expect(await hint()).toBe('? for shortcuts')
+    const opener = await band()
+    await opener.press({ key: 'edit' })
+    await opener.unmount()
+    expect(await hint()).toBe('-- NORMAL --')
+    expect((await state()).cursor).toBe(null)
+    await type('j')
+    expect((await state()).cursor).toBe('가')
+    await type('j', 'j', 'j')
+    expect((await state()).cursor).toBe('다')
+    await type('k')
+    expect((await state()).cursor).toBe('나')
+    await type('g')
+    expect(await hint()).toBe('-- NORMAL --  g')
+    await type('g')
+    expect((await state()).cursor).toBe('가')
+    await type('G')
+    expect((await state()).cursor).toBe('다')
+
+    // K로 위로 옮기고 J로 되돌린다.
+    await type('K')
+    expect((await state()).order).toEqual(['가', '다', '나'])
+    await type('J')
+    expect((await state()).order).toEqual(['가', '나', '다'])
+
+    // dd로 지우면 커서는 그 자리(맨 뒤였으면 앞의 것)로, u로 되살린다. d 다음 다른 키는 d를 버린다.
+    await type('2', 'd', 'j')
+    expect((await state()).order).toEqual(['가', '나', '다'])
+    expect((await state()).cursor).toBe('다')
+    await type('k', 'd', 'd')
+    expect(await state()).toEqual({ cursor: '다', order: ['가', '다'] })
+    await type('u')
+    expect(await state()).toEqual({ cursor: '나', order: ['가', '나', '다'] })
+
+    // i로 문구를 고치는 동안은 INSERT다.
+    await type('i')
+    expect(await hint()).toBe('-- INSERT --  Enter 저장 · $q 취소')
+  })
+
   test('편집하는 동안 입력창에 친 글자는 편집 동작으로만 쓰고, 문구를 쓰는 중에는 글자를 칠하고 Enter로 저장한다', async ($, on) => {
     inRepo(on, '/repo/one')
     const { filled } = composer($, on)
@@ -444,8 +597,8 @@ describe('quick-replies', () => {
     expect((await type('', 'x')).text).toBe('')
     expect((await submit('그냥 보내기')).drop).toBe('프리셋 편집 중이에요. q로 편집을 끝낸 뒤 보내 주세요')
 
-    // a: 전역에 추가. 입력창이 입력칸이 되어 글자를 칠하고, Enter로 저장한다.
-    expect((await type('', 'a')).text).toBe('')
+    // o: 전역에 추가. 입력창이 입력칸이 되어 글자를 칠하고, Enter로 저장한다.
+    expect((await type('', 'o')).text).toBe('')
     await settle()
     expect(filled.at(-1)).toBe('')
     const box = await type('새 프리', '셋')
@@ -453,8 +606,8 @@ describe('quick-replies', () => {
     expect(box.decorations?.[0]?.color).toBe('suggestion')
     expect((await submit('새 프리셋')).drop).toBe('프리셋을 추가했어요')
 
-    // 다시 a로 열고 $q로 취소하면 저장하지 않는다.
-    await type('', 'a')
+    // 다시 o로 열고 $q로 취소하면 저장하지 않는다.
+    await type('', 'o')
     await settle()
     expect((await type('쓰다 만 $', 'q')).text).toBe('쓰다 만 ')
     await settle()

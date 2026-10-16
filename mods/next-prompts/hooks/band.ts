@@ -8,7 +8,8 @@
 //
 // 번호($1~$9)는 각 모드가 스스로 매긴다. 다음 제안이 $1부터, 프리셋은 떠 있는 제안 개수 다음부터다.
 // 띠를 합치는 순서는 모드마다 다르게 보이므로 번호를 여기서 매기지 않는다.
-// 입력창에 `$2`처럼 치면 그 번호의 문구로 바뀐다(`typedNumber`). 빈 입력창의 숫자 하나는 더 이상 버튼을 누르지 않는다.
+// 입력창에 `$2 `, `$12 `처럼 번호 뒤에 스페이스를 치면 그 번호의 문구로 바뀐다(`typedNumber`). 빈 입력창의 숫자 하나는 더 이상 버튼을 누르지 않는다.
+// 스페이스 없이 `$12`에서 바로 Enter를 눌러도 보낼 때 문구로 바꾼다(`expandNumbers`).
 // `$e`, `$0`처럼 `$` 뒤의 글자 하나는 모드가 정한 동작을 부른다(`typedAfterDollar`).
 //
 // 한 모드가 띠를 혼자 써야 할 때(편집 화면 등)는 `exclusiveBand`로 만든 틀을 돌려준다.
@@ -35,9 +36,6 @@ function orderOf(node: RenderNode): number {
   return Number(keyOf(node)?.split(':')[1] ?? 0)
 }
 
-// 번호는 9까지만 붙인다. `$10`은 `$1`을 친 순간 이미 바뀌기 때문이다.
-export const MAX_NUMBER = 9
-
 // 띠에 보이는 번호 표시.
 export const numberLabel = (n: number) => `$${n}:`
 
@@ -50,10 +48,23 @@ export function typedAfterDollar(e: PromptEditInput): string | undefined {
   return before === undefined || /\s/.test(before) ? e.inputText : undefined
 }
 
-// `$1`~`$9`를 쳤으면 그 번호를 낸다. 바꿀 때는 `next({ ...e, start: e.start - 1, inputText: 문구 })`로 `$`까지 덮는다.
-export function typedNumber(e: PromptEditInput): number | undefined {
-  const typed = typedAfterDollar(e)
-  return typed !== undefined && /^[1-9]$/.test(typed) ? Number(typed) : undefined
+// `$12`처럼 번호를 친 뒤 스페이스를 치면 그 번호와 `$`의 자리를 낸다. 스페이스로 끝을 알려야 두 자리 번호도 고를 수 있다.
+// `$`는 글 처음이나 공백 뒤에 있어야 한다. 바꿀 때는 `next({ ...e, start: typed.start, inputText: 문구 })`로 `$`부터 스페이스까지 덮는다.
+export function typedNumber(e: PromptEditInput): { n: number; start: number } | undefined {
+  if (e.key === undefined || e.inputText !== ' ' || e.start !== e.end) {
+    return undefined
+  }
+  const match = /(?:^|\s)\$([1-9][0-9]*)$/.exec(e.text.slice(0, e.start))
+  return match === null ? undefined : { n: Number(match[1]), start: e.start - match[1]!.length - 1 }
+}
+
+// 스페이스 없이 보낸 글에 남은 `$12` 같은 번호를 문구로 바꾼다. `$`는 글 처음이나 공백 뒤, 번호 뒤는 공백이나 글 끝이어야 한다.
+// `lookup`이 문구를 주지 않는 번호(다른 모드의 번호, 없는 번호)는 그대로 둔다.
+export function expandNumbers(text: string, lookup: (n: number) => string | undefined): string {
+  return text.replace(/(^|\s)\$([1-9][0-9]*)(?=\s|$)/g, (whole, before: string, digits: string) => {
+    const phrase = lookup(Number(digits))
+    return phrase === undefined ? whole : before + phrase
+  })
 }
 
 // 띠를 혼자 쓰는 틀. 다른 모드는 이 틀에 줄을 넣지 않는다.
