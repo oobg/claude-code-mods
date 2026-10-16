@@ -46,6 +46,8 @@ async function findRepo($: EngineInterface): Promise<string> {
   }
 }
 
+const defaults = (): Reply[] => DEFAULT_REPLIES.map((text, i) => ({ id: `default-${i}`, text }))
+
 type Presets = { root: string; global: Reply[]; project: Reply[] }
 
 // 그리기는 상태를 쓰지 못하므로 읽기만 한다. 세션 시작 때 채운 값이 있으면 그것을, 없으면 저장소에서 바로 읽는다.
@@ -55,7 +57,7 @@ async function current($: EngineInterface): Promise<Presets> {
   const global =
     (await read($, globalReplies)) ??
     (((await $.store.get(GLOBAL_KEY)) as Reply[] | undefined) ??
-      DEFAULT_REPLIES.map((text, i) => ({ id: `default-${i}`, text })))
+      defaults())
   const project = (await read($, projectReplies)) ?? (((await $.store.get(projectKey(root))) as Reply[] | undefined) ?? [])
   return { root, global, project }
 }
@@ -78,6 +80,27 @@ async function load($: EngineInterface): Promise<void> {
   await update($, projectReplies, () => project)
   const folded = await isCompact($)
   await update($, compact, () => folded)
+}
+
+// 다른 세션에서 고친 프리셋을 이 세션에 들인다. 저장소는 파일 하나라서 바뀌었다는 알림이 없으므로 주기적으로 읽어 비교한다.
+// 띠는 세션 값을 읽어 그리므로, 값이 달라질 때만 바꾸면 그때만 다시 그려진다.
+export const SYNC_MS = 5000
+
+async function sync($: EngineInterface): Promise<void> {
+  const root = await read($, repo)
+  if (root === null) {
+    return
+  }
+  const stored = {
+    global: ((await $.store.get(GLOBAL_KEY)) as Reply[] | undefined) ?? defaults(),
+    project: ((await $.store.get(projectKey(root))) as Reply[] | undefined) ?? [],
+  }
+  if (JSON.stringify(stored.global) !== JSON.stringify(await read($, globalReplies))) {
+    await update($, globalReplies, () => stored.global)
+  }
+  if (JSON.stringify(stored.project) !== JSON.stringify(await read($, projectReplies))) {
+    await update($, projectReplies, () => stored.project)
+  }
 }
 
 // 두 목록을 함께 바꾼다. 한 프리셋을 전역과 프로젝트 사이로 옮길 때 양쪽을 한 번에 저장하기 위해서다.
@@ -309,6 +332,7 @@ export const register: Register = on => {
     const result = await next(e)
     await load($)
     void titleAll($)
+    $.clock.every(SYNC_MS, () => void sync($))
     return result
   })
 
