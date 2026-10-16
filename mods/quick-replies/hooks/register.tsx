@@ -649,7 +649,7 @@ export const register: Register = on => {
         {group(`로컬 (${projectName})`, 'project')}
         {inputRow}
         {selected === null ? (
-          <Text dimColor>입력창에 j, k나 프리셋 번호를 쳐서 고르면 문구 수정, 제목 달기, 삭제, 이동을 할 수 있어요.</Text>
+          <Text dimColor>입력창에 j, k 또는 프리셋 번호를 쳐서 고르면 문구 수정, 제목 달기, 삭제, 이동을 할 수 있어요.</Text>
         ) : (
           <Box flexDirection="row" columnGap={2}>
             <Text dimColor>고른 프리셋</Text>
