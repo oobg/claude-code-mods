@@ -1,8 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { EditInput, Mode, Reply, Scope } from '../types'
-import { MAX_NUMBER, exclusiveBand, numberLabel, typedAfterDollar, typedNumber, withBandSection } from './band'
+import type { Deleted, EditInput, Mode, Reply, Scope } from '../types'
+import { exclusiveBand, expandNumbers, numberLabel, typedAfterDollar, typedNumber, withBandSection } from './band'
 import { TITLE_SYSTEM, needsTitle, parseTitle, shortTitle, titlePrompt } from './title'
 
 export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞아 그렇게 진행해']
@@ -252,9 +252,26 @@ async function submitInput($: EngineInterface, editing: EditInput, text: string)
   await update($, mode, m => (m.kind === 'edit' ? { ...m, input: null } : m))
 }
 
+// 지우고 커서는 그 자리에 들어선 프리셋(맨 뒤였으면 앞의 것)으로 옮긴다. 지운 것은 `u`로 되살릴 수 있게 남긴다.
 async function removePreset($: EngineInterface, id: string): Promise<void> {
+  const before = ordered(await current($))
+  const at = before.findIndex(item => item.reply.id === id)
+  const target = before[at]
+  if (target === undefined) {
+    return
+  }
+  const deleted: Deleted = { reply: target.reply, scope: target.scope, index: before.filter(i => i.scope === target.scope).indexOf(target) }
   await save($, p => ({ ...p, global: without(p.global, id), project: without(p.project, id) }))
-  await update($, mode, m => (m.kind === 'edit' ? { ...m, selected: null } : m))
+  const after = before.filter(item => item.reply.id !== id)
+  const next = after[Math.min(at, after.length - 1)]?.reply.id ?? null
+  await update($, mode, m => (m.kind === 'edit' ? { ...m, selected: next, deleted } : m))
+}
+
+// 마지막으로 지운 프리셋을 원래 범위의 원래 자리에 되살리고 커서를 둔다.
+async function restorePreset($: EngineInterface, deleted: Deleted): Promise<void> {
+  const put = (list: Reply[]) => [...list.slice(0, deleted.index), deleted.reply, ...list.slice(deleted.index)]
+  await save($, p => (deleted.scope === 'global' ? { ...p, global: put(p.global) } : { ...p, project: put(p.project) }))
+  await update($, mode, m => (m.kind === 'edit' ? { ...m, selected: deleted.reply.id, deleted: undefined } : m))
 }
 
 // 전역과 로컬 사이로 옮긴다. 옮긴 프리셋은 그쪽 목록 맨 뒤에 붙는다.
@@ -286,43 +303,71 @@ async function reorder($: EngineInterface, id: string, by: number): Promise<void
   await save($, p => ({ ...p, global: shifted(p.global, id, by), project: shifted(p.project, id, by) }))
 }
 
-// 편집 화면에서 고르는 중일 때 입력창에 친 글자 하나를 동작으로 바꾼다. 띠의 버튼과 같은 동작이다.
+// 전역 다음 로컬 순서로 늘어놓은 목록. 편집 화면의 번호와 커서는 이 순서를 따른다.
+function ordered(presets: Presets): { reply: Reply; scope: Scope }[] {
+  return [
+    ...presets.global.map(reply => ({ reply, scope: 'global' as Scope })),
+    ...presets.project.map(reply => ({ reply, scope: 'project' as Scope })),
+  ]
+}
+
+// 두 번 쳐야 하는 키. 첫 글자는 `pending`에 두었다가 같은 글자가 오면 실행한다.
+const SEQUENCES = ['dd', 'gg']
+
+// 편집 화면에서 고르는 중일 때 입력창에 친 글자 하나를 vim처럼 동작으로 바꾼다. 띠의 버튼도 같은 글자로 이 함수를 부른다.
+//   j/k 커서 아래/위, gg/G 처음/끝, 1~9 그 번호로, J/K 프리셋을 아래/위로 옮기기
+//   i 문구 수정, t 제목, dd 삭제, u 되살리기, m 전역↔로컬, o 커서가 있는 범위에 추가, q 완료
 async function editorKey($: EngineInterface, key: string): Promise<void> {
   const shown = await read($, mode)
   if (shown.kind !== 'edit') {
     return
   }
-  const presets = await current($)
-  const all = [
-    ...presets.global.map(reply => ({ reply, scope: 'global' as Scope })),
-    ...presets.project.map(reply => ({ reply, scope: 'project' as Scope })),
-  ]
-  if (/^[1-9]$/.test(key)) {
-    const picked = all[Number(key) - 1]
+  const pending = shown.pending ?? ''
+  if (pending !== '') {
+    await update($, mode, m => (m.kind === 'edit' ? { ...m, pending: undefined } : m))
+  }
+  const typed = SEQUENCES.includes(pending + key) ? pending + key : key
+  if (SEQUENCES.some(seq => seq[0] === typed && seq.length === 2)) {
+    await update($, mode, m => (m.kind === 'edit' ? { ...m, pending: typed } : m))
+    return
+  }
+  const all = ordered(await current($))
+  const select = async (index: number) => {
+    const picked = all[Math.max(0, Math.min(index, all.length - 1))]
     if (picked !== undefined) {
       await update($, mode, m => (m.kind === 'edit' ? { ...m, selected: picked.reply.id, input: null } : m))
     }
+  }
+  if (/^[1-9]$/.test(typed)) {
+    if (Number(typed) <= all.length) {
+      await select(Number(typed) - 1)
+    }
     return
   }
-  const selected = all.find(item => item.reply.id === shown.selected)
+  const at = all.findIndex(item => item.reply.id === shown.selected)
+  const selected = all[at]
   const actions: Record<string, () => Promise<void>> = {
-    a: () => startInput($, { kind: 'add', scope: 'global' }),
-    l: () => startInput($, { kind: 'add', scope: 'project' }),
+    j: () => select(at < 0 ? 0 : at + 1),
+    k: () => select(at < 0 ? all.length - 1 : at - 1),
+    gg: () => select(0),
+    G: () => select(all.length - 1),
+    o: () => startInput($, { kind: 'add', scope: selected?.scope ?? 'global' }),
     q: async () => {
       await update($, mode, () => ({ kind: 'view' }) as Mode)
     },
+    ...(shown.deleted === undefined ? {} : { u: () => restorePreset($, shown.deleted as Deleted) }),
     ...(selected === undefined
       ? {}
       : {
-          e: () => startInput($, { kind: 'rename', id: selected.reply.id }),
+          i: () => startInput($, { kind: 'rename', id: selected.reply.id }),
           t: () => startInput($, { kind: 'title', id: selected.reply.id }),
-          d: () => removePreset($, selected.reply.id),
+          dd: () => removePreset($, selected.reply.id),
           m: () => movePreset($, selected.reply.id),
-          k: () => reorder($, selected.reply.id, -1),
-          j: () => reorder($, selected.reply.id, 1),
+          K: () => reorder($, selected.reply.id, -1),
+          J: () => reorder($, selected.reply.id, 1),
         }),
   }
-  await actions[key]?.()
+  await actions[typed]?.()
 }
 
 const SAVED: Record<EditInput['kind'], string> = { add: '프리셋을 추가했어요', rename: '문구를 고쳤어요', title: '제목을 바꿨어요' }
@@ -336,7 +381,7 @@ export const register: Register = on => {
     return result
   })
 
-  // 입력창에 `$5`처럼 치면 그 자리를 그 번호의 프리셋 문구로 바꾼다. 번호는 띠에 보이는 것과 같게 셈한다.
+  // 입력창에 `$5 `, `$12 `처럼 번호 뒤에 스페이스를 치면 그 자리를 그 번호의 프리셋 문구로 바꾼다. 번호는 띠에 보이는 것과 같게 셈한다.
   // `$e`는 편집 화면을 열고 `$0`은 프리셋을 접거나 편다. 이때 친 `$e`, `$0`은 입력창에 남기지 않는다.
   on('prompt.edit', async ($, e, next) => {
     const shown = await read($, mode)
@@ -344,7 +389,7 @@ export const register: Register = on => {
       // 고르는 중에는 입력창에 친 글자를 하나도 넣지 않고 편집 동작으로만 쓴다.
       if (shown.input === null) {
         if (e.key !== undefined && e.inputText.length === 1) {
-          void editorKey($, e.inputText.toLowerCase())
+          void editorKey($, e.inputText)
         }
         return next({ ...e, start: e.cursor, end: e.cursor, inputText: '' })
       }
@@ -363,12 +408,12 @@ export const register: Register = on => {
       void (typed === 'e' ? openEditor($) : toggleCompact($))
       return box
     }
-    const n = typedNumber(e)
-    if (n !== undefined && (await read($, mode)).kind === 'view') {
+    const typedN = typedNumber(e)
+    if (typedN !== undefined && (await read($, mode)).kind === 'view') {
       const presets = await current($)
-      const reply = [...presets.global, ...presets.project][n - 1 - (await suggestionCount($))]
+      const reply = [...presets.global, ...presets.project][typedN.n - 1 - (await suggestionCount($))]
       if (reply !== undefined) {
-        return next({ ...e, start: e.start - 1, inputText: reply.text })
+        return next({ ...e, start: typedN.start, inputText: reply.text })
       }
     }
     return next(e)
@@ -377,8 +422,26 @@ export const register: Register = on => {
   // 편집하는 동안 Enter는 Claude에게 보내지 않는다. 문구를 쓰는 중이면 그 글을 저장하고, 결과를 알림 대신 보내기를 막은 이유로 보인다.
   on('prompt.submit', async ($, e, next) => {
     const shown = await read($, mode)
-    if (shown.kind !== 'edit' || e.origin.kind !== 'composer') {
+    if (e.origin.kind !== 'composer') {
       return next(e)
+    }
+    // 스페이스 없이 `$번호`에서 바로 Enter를 눌러도 그 번호의 프리셋으로 바꿔 보낸다. 다음 제안의 번호는 next-prompts가 바꾼다.
+    // 글 전체가 `/명령` 프리셋 하나면 클릭한 것처럼 명령으로 실행한다.
+    if (shown.kind === 'view') {
+      const { global, project } = await current($)
+      const presets = [...global, ...project]
+      const offset = await suggestionCount($)
+      const lookup = (n: number) => (n > offset ? presets[n - 1 - offset]?.text : undefined)
+      const whole = /^\$([1-9][0-9]*)$/.exec(e.text.trim())
+      const single = whole === null ? undefined : lookup(Number(whole[1]))
+      const command = single === undefined ? null : parseCommand(single)
+      if (single !== undefined && command !== null) {
+        void send($, single)
+        void $.prompt.fill({ text: '' })
+        return { drop: `/${command.command} 프리셋을 실행해요` }
+      }
+      const text = expandNumbers(e.text, lookup)
+      return next(text === e.text ? e : { ...e, text })
     }
     if (shown.input === null) {
       return { drop: '프리셋 편집 중이에요. q로 편집을 끝낸 뒤 보내 주세요' }
@@ -388,6 +451,19 @@ export const register: Register = on => {
     await submitInput($, editing, text)
     void $.prompt.fill({ text: '' })
     return { drop: text === '' && editing.kind !== 'title' ? '문구가 비어 있어서 저장하지 않았어요' : SAVED[editing.kind] }
+  })
+
+  // 편집하는 동안 입력창 아래 안내 줄을 vim의 모드 표시로 바꾼다. 두 번 치는 키의 첫 글자(d, g)는 vim처럼 옆에 보인다.
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    const shown = await read($, mode)
+    if (shown.kind !== 'edit') {
+      return next(e)
+    }
+    const hint =
+      shown.input === null
+        ? `-- NORMAL --  ${shown.pending ?? ''}`.trimEnd()
+        : '-- INSERT --  Enter 저장 · $q 취소'
+    return next({ ...e, props: { ...e.props, hint } })
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -404,51 +480,42 @@ export const register: Register = on => {
       const folded = await isCompact($)
       // 번호는 다음 제안 다음부터 이어 붙인다. 작업 중에는 다음 제안이 숨으므로 1부터다.
       // 프리셋 하나는 버튼 두 개다. 번호(`$1:`)는 클릭하면 문구를 입력창에 넣기만 하고, 문구는 클릭하면 바로 보낸다.
-      // 입력창에 `$1`을 치면 번호를 클릭하지 않아도 그 자리에 들어간다(prompt.edit).
+      // 입력창에 `$1 `처럼 번호와 스페이스를 치면 번호를 클릭하지 않아도 그 자리에 들어간다(prompt.edit).
       let number = e.props.isWorking ? 0 : await suggestionCount($)
       const item = (reply: Reply) => {
         number += 1
         // 접으면 제목을, 펼치면 문구를 보인다. 보이는 글이 /명령으로 시작하면 그 부분만 칠한다.
-        const label = folded ? shortTitle(reply) : reply.text
+        // 펼쳐도 한 줄만 쓴다. 줄바꿈은 띄어쓰기로 잇고, 폭을 넘으면 말줄임표로 자른다. 전체 문구는 편집 화면에서 보인다.
+        const label = folded ? shortTitle(reply) : reply.text.replace(/\s*\n\s*/g, ' ')
         const command = parseCommand(reply.text)
         const prefix = command === null ? '' : `/${command.command}`
         const isCommand = prefix !== '' && label.startsWith(prefix)
         return (
           <Box key={`item:${reply.id}`} flexDirection="row" columnGap={1}>
-            {number <= MAX_NUMBER && (
-              <Button
-                key={`fill:${reply.id}`}
-                label={numberLabel(number)}
-                plain
-                onPress={() => {
-                  void $.prompt.fill({ text: reply.text })
-                }}
-              >
-                <Text color={ACCENT}>{numberLabel(number)}</Text>
-              </Button>
-            )}
-            {/* 문구가 두 줄 이상이면 터미널의 포인터 반전이 첫 줄에만 닿는다. 문구만 감싼 Box에 hover를 걸어 모든 줄을 함께 반전한다. */}
-            <Box key={`send-box:${reply.id}`}>
-              <Button
-                key={`send:${reply.id}`}
-                label={label}
-                plain
-                hover={{ inverse: true }}
-                onPress={() => {
-                  void send($, reply.text)
-                }}
-              >
-                {isCommand ? (
-                  // 스킬이나 슬래시 명령은 명령 부분만 번호와 같은 색으로 칠해 일반 문장과 구분한다.
-                  <Text>
-                    <Text color={ACCENT}>{prefix}</Text>
-                    {label.slice(prefix.length)}
-                  </Text>
-                ) : (
-                  label
-                )}
-              </Button>
-            </Box>
+            <Button
+              key={`fill:${reply.id}`}
+              label={numberLabel(number)}
+              plain
+              onPress={() => {
+                void $.prompt.fill({ text: reply.text })
+              }}
+            >
+              <Text color={ACCENT}>{numberLabel(number)}</Text>
+            </Button>
+            <Button
+              key={`send:${reply.id}`}
+              label={label}
+              plain
+              onPress={() => {
+                void send($, reply.text)
+              }}
+            >
+              <Text wrap="truncate-end">
+                {/* 스킬이나 슬래시 명령은 명령 부분만 번호와 같은 색으로 칠해 일반 문장과 구분한다. */}
+                {isCommand && <Text color={ACCENT}>{prefix}</Text>}
+                {isCommand ? label.slice(prefix.length) : label}
+              </Text>
+            </Button>
           </Box>
         )
       }
@@ -494,13 +561,8 @@ export const register: Register = on => {
       return withBandSection(below, 'quick-replies', ORDER, rows)
     }
 
-    // 편집 화면: 띠를 혼자 쓰고, 키 하나로 동작한다.
-    //   숫자 1~9: 프리셋 고르기 / a: 전역에 추가 / l: 로컬에 추가 / q: 완료
-    //   고른 프리셋에: e 문구 수정 / t 제목 / d 삭제 / m 범위 바꾸기 / k 위로 / j 아래로
-    const all = [
-      ...presets.global.map(reply => ({ reply, scope: 'global' as Scope })),
-      ...presets.project.map(reply => ({ reply, scope: 'project' as Scope })),
-    ]
+    // 편집 화면: 띠를 혼자 쓰고, vim처럼 키 하나(또는 dd, gg)로 동작한다. 키는 editorKey에 적었다.
+    const all = ordered(presets)
     const selected = all.find(item => item.reply.id === shown.selected) ?? null
     const setEdit = (patch: Partial<Extract<Mode, { kind: 'edit' }>>) =>
       update($, mode, m => (m.kind === 'edit' ? { ...m, ...patch } : m))
@@ -536,10 +598,18 @@ export const register: Register = on => {
         </Box>
       )
     }
-    // 버튼을 클릭해도 입력창에 그 글자를 친 것과 같은 동작을 한다.
-    const action = (key: string, hotkey: string, label: string) => (
-      <Button key={key} label={label} hotkey={hotkey} plain onPress={() => void editorKey($, hotkey)} />
-    )
+    // 버튼을 클릭해도 입력창에 그 글자를 친 것과 같은 동작을 한다. 소문자 한 글자는 띠의 단축키로 달아 `a: 라벨`로 그려진다.
+    // 버튼 단축키는 소문자 한 글자만 받으므로, 대문자(J, K)와 두 글자(dd)는 단축키 없이 글자만 직접 그린다. dd는 두 번 눌러야 지운다.
+    const action = (key: string, typed: string, label: string) =>
+      /^[a-z]$/.test(typed) ? (
+        <Button key={key} label={label} hotkey={typed} plain onPress={() => void editorKey($, typed)} />
+      ) : (
+        <Button key={key} label={`${typed}: ${label}`} plain onPress={() => void editorKey($, typed[0] ?? '')}>
+          <Text>
+            <Text color={ACCENT}>{typed}:</Text> {label}
+          </Text>
+        </Button>
+      )
 
     let inputRow = null
     if (shown.input !== null) {
@@ -571,24 +641,24 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={2}>
           <Text bold>프리셋 편집</Text>
-          {action('add-global', 'a', '전역에 추가')}
-          {action('add-project', 'l', '로컬에 추가')}
+          {action('add', 'o', selected?.scope === 'project' ? '로컬에 추가' : '전역에 추가')}
+          {shown.deleted !== undefined && action('undo', 'u', '되살리기')}
           {action('done', 'q', '완료')}
         </Box>
         {group('전역 (모든 저장소)', 'global')}
         {group(`로컬 (${projectName})`, 'project')}
         {inputRow}
         {selected === null ? (
-          <Text dimColor>입력창에 프리셋 번호를 치면 문구 수정, 제목 달기, 삭제, 이동을 할 수 있어요.</Text>
+          <Text dimColor>입력창에 j, k나 프리셋 번호를 쳐서 고르면 문구 수정, 제목 달기, 삭제, 이동을 할 수 있어요.</Text>
         ) : (
           <Box flexDirection="row" columnGap={2}>
             <Text dimColor>고른 프리셋</Text>
-            {action('act-edit', 'e', '문구 수정')}
+            {action('act-edit', 'i', '문구 수정')}
             {action('act-title', 't', '제목')}
-            {action('act-delete', 'd', '삭제')}
+            {action('act-delete', 'dd', '삭제')}
             {action('act-move', 'm', selected.scope === 'global' ? '로컬로' : '전역으로')}
-            {action('act-up', 'k', '위로')}
-            {action('act-down', 'j', '아래로')}
+            {action('act-up', 'K', '위로')}
+            {action('act-down', 'J', '아래로')}
           </Box>
         )}
       </Box>

@@ -10,11 +10,17 @@ export type Scope = 'global' | 'project'
 /** 편집 화면의 입력칸: 새 프리셋을 쓰는 `add`, 고른 프리셋의 문구를 고치는 `rename`, 제목을 고치는 `title`. */
 export type EditInput = { kind: 'add'; scope: Scope } | { kind: 'rename'; id: string } | { kind: 'title'; id: string }
 
+/** `dd`로 지운 프리셋과 그 자리. `u`로 그 자리에 되살린다. */
+export type Deleted = { reply: Reply; scope: Scope; index: number }
+
 /**
  * 띠의 화면: 프리셋 버튼만 보이는 `view`, 목록을 고치는 `edit`.
- * `selected`는 번호로 고른 프리셋, `input`은 지금 열린 입력칸(없으면 null)이다.
+ * `selected`는 커서가 있는 프리셋, `input`은 지금 열린 입력칸(없으면 null)이다.
+ * `pending`은 `dd`, `gg`처럼 두 번 치는 키의 첫 글자, `deleted`는 마지막으로 지운 프리셋이다.
  */
-export type Mode = { kind: 'view' } | { kind: 'edit'; selected: string | null; input: EditInput | null }
+export type Mode =
+  | { kind: 'view' }
+  | { kind: 'edit'; selected: string | null; input: EditInput | null; pending?: string; deleted?: Deleted }
 
 declare module 'claude-code' {
   interface PluginState {

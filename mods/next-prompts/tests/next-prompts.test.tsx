@@ -164,15 +164,15 @@ describe('next-prompts', () => {
     expect(await ui.find({ key: 'line:2' })).toBeDefined()
     await ui.unmount()
 
-    // 도중에도 `$1`은 화면의 잘린 글자가 아니라 전체 문구로 바뀐다.
+    // 도중에도 `$1 `은 화면의 잘린 글자가 아니라 전체 문구로 바뀐다.
     const typed = await ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string }> }).edit({
       origin: { kind: 'composer' },
-      key: { key: '1' },
-      text: '$',
-      cursor: 1,
-      start: 1,
-      end: 1,
-      inputText: '1',
+      key: { key: ' ' },
+      text: '$1',
+      cursor: 2,
+      start: 2,
+      end: 2,
+      inputText: ' ',
     })
     expect(typed.text).toBe(first)
 
@@ -248,23 +248,47 @@ describe('next-prompts', () => {
     await ui.unmount()
   })
 
-  test('입력창에 `$2`를 치면 그 자리를 2번 제안으로 바꾸고, 낱말 중간의 $나 없는 번호는 그대로 둔다', async ($, on) => {
+  test('입력창에 `$2 `를 치면 그 자리를 2번 제안으로 바꾸고, 낱말 중간의 $나 없는 번호는 그대로 둔다', async ($, on) => {
     on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: ['테스트 돌려줘', '커밋해줘'], version: 1 } }) as never)
     on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
-    const type = (text: string, digit: string) =>
+    const type = (text: string, char: string) =>
       ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string; cursor: number }> }).edit({
         origin: { kind: 'composer' },
-        key: { key: digit },
+        key: { key: char },
         text,
         cursor: text.length,
         start: text.length,
         end: text.length,
-        inputText: digit,
+        inputText: char,
       })
-    expect(await type('끝나면 $', '2')).toEqual({ text: '끝나면 커밋해줘', cursor: 8 })
-    expect(await type('$', '1')).toEqual({ text: '테스트 돌려줘', cursor: 7 })
-    expect(await type('a$', '1')).toEqual({ text: 'a$1', cursor: 3 })
-    expect(await type('$', '3')).toEqual({ text: '$3', cursor: 2 })
+    expect(await type('끝나면 $', '2')).toEqual({ text: '끝나면 $2', cursor: 6 })
+    expect(await type('끝나면 $2', ' ')).toEqual({ text: '끝나면 커밋해줘', cursor: 8 })
+    expect(await type('$1', ' ')).toEqual({ text: '테스트 돌려줘', cursor: 7 })
+    expect(await type('a$1', ' ')).toEqual({ text: 'a$1 ', cursor: 4 })
+    expect(await type('$3', ' ')).toEqual({ text: '$3 ', cursor: 3 })
+    expect(await type('$12', ' ')).toEqual({ text: '$12 ', cursor: 4 })
+  })
+
+  test('스페이스 없이 `$2`에서 바로 Enter를 눌러도 2번 제안으로 바꿔 보내고, 보낸 뒤에 제안을 비운다', async ($, on) => {
+    let stored: unknown = ['테스트 돌려줘', '커밋해줘']
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: stored, version: 1 } }) as never)
+    on('state.set', { plugin: 'next-prompts', key: 'suggestions' }, (_$, e) => {
+      stored = (e as { value: unknown }).value
+      return { value: { isSet: true, version: 2 } } as never
+    })
+    let seen: { text: string; suggestions: unknown } | undefined
+    on('prompt.submit', (_$, e) => {
+      seen = { text: e.text, suggestions: stored }
+      return { text: e.text }
+    })
+    const submit = (text: string) =>
+      ($.prompt as unknown as { submit: (e: unknown) => Promise<{ text?: string }> }).submit({ origin: { kind: 'composer' }, text, wait: false })
+    expect((await submit('끝나면 $2')).text).toBe('끝나면 커밋해줘')
+    // 안쪽 훅(quick-replies 등)이 볼 때는 제안이 아직 남아 있고, 보낸 뒤에 비운다.
+    expect(seen).toEqual({ text: '끝나면 커밋해줘', suggestions: ['테스트 돌려줘', '커밋해줘'] })
+    expect(stored).toEqual([])
+    stored = ['테스트 돌려줘']
+    expect((await submit('$1 하고 $5, a$1')).text).toBe('테스트 돌려줘 하고 $5, a$1')
   })
 
   test('서브에이전트의 턴이 끝날 때는 제안을 만들지 않는다', async ($, on) => {
