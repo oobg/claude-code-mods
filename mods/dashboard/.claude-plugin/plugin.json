@@ -1,6 +1,6 @@
 {
   "name": "dashboard",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "모델, 컨텍스트, 요금, 사용 한도(Fable 포함), 브랜치를 입력창 아래에 표시합니다. /dashboard-style과 /dashboard-theme으로 모양과 색을 바꿉니다",
   "author": {
     "name": "oobg"

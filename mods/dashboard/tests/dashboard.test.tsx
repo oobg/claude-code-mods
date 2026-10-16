@@ -321,6 +321,45 @@ describe('dashboard', () => {
     await ui.unmount()
   })
 
+  test('Shift+Tab으로 권한 모드를 바꾸면 안내 줄에 잠깐 뜬 모드 이름을 보고 그 폭만큼 당긴다. 이름이 사라져도 유지한다', async ($, on) => {
+    mock.env(on, { HOME: '/home/me' })
+    mock.store(on)
+    mock.clock(on)
+    on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1_000_000 }, rateLimits: [] } }))
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    on('session.cwd', () => ({ value: '/work/repo' }))
+    on('session.root', () => ({ value: '/work/repo' }))
+    on('session.id', () => ({ value: 'abc12345-0000' }))
+    on('fs.read', () => ({ value: '{}' }))
+    on('fs.list', () => ({ value: [] as never }))
+    on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '' } as never }))
+    on('ui.render', { component: 'PromptHint' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-hint</Text>
+    })
+    on('classic.SessionStart', () => ({}) as never)
+    on('prompt.submit', () => ({ text: '' }) as never)
+    await $.classic.SessionStart({ source: 'startup', permission_mode: 'bypassPermissions' } as never)
+    await $.prompt.submit({ text: 'hi' } as never)
+    const pullWith = async (hint: string) => {
+      const props = { ...HINT, props: { ...HINT.props, hint } }
+      let ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...props })
+      for (let i = 0; i < 50 && (await ui.find({ key: 'oobg-footer:20:dashboard' })) === undefined; i++) {
+        await ui.unmount()
+        ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...props })
+      }
+      const margin = (await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft
+      await ui.unmount()
+      return margin
+    }
+    expect(await pullWith('(shift+tab to cycle)')).toBe(-27)
+    expect(await pullWith('accept edits on (shift+tab to cycle) · ← for agents')).toBe(-21)
+    expect(await pullWith('(shift+tab to cycle) · ← for agents')).toBe(-21)
+    expect(await pullWith('plan mode on (shift+tab to cycle)')).toBe(-17)
+    expect(await pullWith('manual mode on · ← for agents')).toBe(-19)
+    expect(await pullWith('← for agents')).toBe(-19)
+  })
+
   test('실행 인자에서 처음 권한 모드를 읽는다', () => {
     expect(launchPermissionMode('claude --dangerously-skip-permissions')).toBe('bypassPermissions')
     expect(launchPermissionMode('/Users/me/.local/bin/claude --permission-mode plan')).toBe('plan')
