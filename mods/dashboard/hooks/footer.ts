@@ -37,6 +37,21 @@ export function launchPermissionMode(args: string): string | null {
   return found ?? null
 }
 
+// Shift+Tab으로 권한 모드를 바꾸면 엔진은 안내 줄을 새 모드 이름(`plan mode on (shift+tab to cycle)`)으로 한 번 그린 뒤
+// 이름 없이 다시 그린다. 모드가 바뀌었다는 이벤트는 따로 없어서, 이 이름을 보고 지금 모드를 안다. 이름이 없으면 null.
+const HINT_LABELS: Record<string, string> = {
+  'manual mode on': 'default',
+  'accept edits on': 'acceptEdits',
+  'plan mode on': 'plan',
+  'bypass permissions on': 'bypassPermissions',
+  'auto mode on': 'auto',
+}
+
+export function modeFromHint(hint: string): string | null {
+  const label = Object.keys(HINT_LABELS).find(name => hint.startsWith(name))
+  return label === undefined ? null : (HINT_LABELS[label] ?? null)
+}
+
 export function pullFor(permissionMode: string | null): number {
   return permissionMode === null ? 0 : (PILL_WIDTH[permissionMode] ?? 0)
 }

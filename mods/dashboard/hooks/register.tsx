@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Segment, Snapshot, Style, Theme } from '../types'
-import { launchPermissionMode, lastPermissionMode, pullFor, withSection } from './footer'
+import { launchPermissionMode, lastPermissionMode, modeFromHint, pullFor, withSection } from './footer'
 import { GAPS, STYLES, THEME_NAMES, buildLayout, parseUsageLimits } from './lines'
 import type { PolledLimit } from './lines'
 
@@ -198,10 +198,18 @@ async function render($: EngineInterface): Promise<void> {
 // 이 값으로 권한 모드 표시 폭만큼 당긴다.
 async function notePermissionMode($: EngineInterface, e: { permission_mode?: string }): Promise<void> {
   const mode = e.permission_mode
-  if (typeof mode === 'string' && mode !== (await read($, permissionMode))) {
-    await update($, permissionMode, () => mode)
+  if (typeof mode === 'string') {
+    // 훅 이벤트가 실어 온 값이 가장 새롭다. 안내 줄에서 읽어 둔 값은 버린다.
+    hintedMode = null
+    if (mode !== (await read($, permissionMode))) {
+      await update($, permissionMode, () => mode)
+    }
   }
 }
+
+// Shift+Tab으로 바꾼 권한 모드. 그리기는 상태를 쓰지 못하므로 모듈 변수에 둔다.
+// 기록 파일은 다음 메시지 전까지 예전 모드를 담고 있으므로, 이 값이 있으면 기록에서 읽은 값보다 먼저 쓴다.
+let hintedMode: string | null = null
 
 // 모드가 띄운 프로세스의 부모를 따라 올라가 Claude Code의 실행 줄을 찾는다. 못 찾으면 빈 문자열.
 const LAUNCH_SCRIPT =
@@ -348,7 +356,8 @@ export const register: Register = on => {
     }
     const below = await next(e)
     const taken = await read($, snapshot)
-    const pull = pullFor(await read($, permissionMode))
+    hintedMode = modeFromHint(e.props.hint) ?? hintedMode
+    const pull = pullFor(hintedMode ?? (await read($, permissionMode)))
     if (taken === null) {
       return withSection(below, e.props.hint, 'dashboard', ORDER, null, pull)
     }
