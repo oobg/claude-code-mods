@@ -49,7 +49,7 @@ export function typedAfterDollar(e: PromptEditInput): string | undefined {
 }
 
 // `$12`처럼 번호를 친 뒤 스페이스를 치면 그 번호와 `$`의 자리를 낸다. 스페이스로 끝을 알려야 두 자리 번호도 고를 수 있다.
-// `$`는 글 처음이나 공백 뒤에 있어야 한다. 바꿀 때는 `next({ ...e, start: typed.start, inputText: 문구 })`로 `$`부터 스페이스까지 덮는다.
+// `$`는 글 처음이나 공백 뒤에 있어야 한다. 바꿀 때는 `next({ ...e, start: typed.start, inputText: 문구 + ' ' })`로 `$`부터 친 스페이스까지 덮고, 이어 쓰기 좋게 문구 뒤에 스페이스 하나를 붙인다.
 export function typedNumber(e: PromptEditInput): { n: number; start: number } | undefined {
   if (e.key === undefined || e.inputText !== ' ' || e.start !== e.end) {
     return undefined

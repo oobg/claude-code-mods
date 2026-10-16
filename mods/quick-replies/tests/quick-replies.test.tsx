@@ -415,10 +415,10 @@ describe('quick-replies', () => {
         end: text.length,
         inputText: char,
       })
-    // 번호만 쳐서는 바뀌지 않고, 뒤에 스페이스를 쳐야 바뀐다. 친 스페이스는 남기지 않는다.
+    // 번호만 쳐서는 바뀌지 않고, 뒤에 스페이스를 쳐야 바뀐다. 바뀐 문구 뒤에는 스페이스 하나를 붙인다.
     expect((await type('$', '3')).text).toBe('$3')
-    expect((await type('그리고 $3', ' ')).text).toBe('그리고 지금 진행상황')
-    expect((await type('$4', ' ')).text).toBe('맞아 그렇게 진행해')
+    expect((await type('그리고 $3', ' ')).text).toBe('그리고 지금 진행상황 ')
+    expect((await type('$4', ' ')).text).toBe('맞아 그렇게 진행해 ')
     expect((await type('$1', ' ')).text).toBe('$1 ')
     expect((await type('$5', ' ')).text).toBe('$5 ')
     expect((await type('a$3', ' ')).text).toBe('a$3 ')
@@ -464,8 +464,8 @@ describe('quick-replies', () => {
         inputText: char,
       })
     expect((await type('$1', '2')).text).toBe('$12')
-    expect((await type('$12', ' ')).text).toBe('문구 12')
-    expect((await type('$1', ' ')).text).toBe('문구 1')
+    expect((await type('$12', ' ')).text).toBe('문구 12 ')
+    expect((await type('$1', ' ')).text).toBe('문구 1 ')
   })
 
   test('입력창에 `$0`을 치면 프리셋을 접고, `$e`를 치면 편집 화면을 연다. 친 글자는 남기지 않는다', async ($, on) => {
