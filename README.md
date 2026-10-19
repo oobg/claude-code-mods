@@ -239,12 +239,12 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 
 | 문서 | 내용 |
 | --- | --- |
-| [next-prompts](./docs/next-prompts.md) | 제안이 나오는 조건, 나타나는 방식, 모델 호출과 사용량 |
-| [quick-replies](./docs/quick-replies.md) | 프리셋 범위와 번호, 접기와 자동 제목, 편집 화면 키, 저장 데이터 |
-| [dashboard](./docs/dashboard.md) | 항목 설명, 표시 형태와 색상, `/usage` 조회, 참고 사항 |
-| [key-assist](./docs/key-assist.md) | 파일 붙여넣기 동작, Cmd+Z 키 설정, 제한 사항 |
-| [split-diff](./docs/split-diff.md) | 좌우 표시 조건, 줄 맞추기, 단어 강조, 제한 사항 |
-| [relaunch](./docs/relaunch.md) | 빠른 시작, 사용법, 알아 둘 점, 문제 해결 |
+| [next-prompts](./docs/next-prompts.md) | 제안을 넣고 보내고 닫는 방법, quick-replies와 함께 쓰기, 알아 둘 점 |
+| [quick-replies](./docs/quick-replies.md) | 전역 프리셋과 로컬 프리셋, 불러오기, 스킬과 슬래시 명령, 접기, 편집 화면 |
+| [dashboard](./docs/dashboard.md) | 표시하는 항목, 모양 바꾸기, 색 바꾸기, 상태줄과 함께 쓸 때 |
+| [key-assist](./docs/key-assist.md) | 파일 붙여넣기, Cmd+Z로 되돌리기, 알아 둘 점 |
+| [split-diff](./docs/split-diff.md) | 좌우로 나뉘는 조건, 실제 화면, 알아 둘 점 |
+| [relaunch](./docs/relaunch.md) | 다시 열기 버튼과 `/relaunch`, 알아 둘 점 |
 
 ## 라이선스
 
