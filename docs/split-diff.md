@@ -37,12 +37,6 @@
 
 줄 대부분이 바뀌었거나 줄에 탭이 있으면 단어를 강조하지 않고 줄 배경색만 칠합니다.
 
-아래는 Claude Code에서 캡처한 실제 화면입니다.
-
-<p><picture>
-<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/split-diff-dark.png">
-<img alt="split-diff: Claude Code에서 캡처한 좌우 diff 화면" src="./images/showcase/split-diff-light.png" width="100%">
-</picture></p>
 
 ## 알아 둘 점
 
