@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Reveal, Suggestions } from '../types'
-import { expandNumbers, numberLabel, typedNumber, withBandSection } from './band'
+import { expandNumbers, expandRanges, numberLabel, rangeText, typedNumber, typedRange, withBandSection } from './band'
 import { MAX_EARLIER_PROMPTS, MAX_REPLY_TOKENS, MIN_ANSWER_CHARS, SYSTEM, buildPrompt, debugLine, parseSuggestions } from './suggest'
 
 // 띠 안의 순서. quick-replies 프리셋 줄(20) 위에 온다.
@@ -107,12 +107,13 @@ export const register: Register = on => {
   })
 
   // 프롬프트를 보내면(슬래시 명령 포함) 지난 제안을 지우고, 다음 제안의 재료로 그 문장을 남긴다.
-  // 사람이 입력창에서 보낸 글에 남은 `$번호`(스페이스 없이 Enter)는 그 번호의 제안으로 바꿔 보낸다.
+  // 사람이 입력창에서 보낸 글에 남은 `$번호`, `$번호-$번호`(스페이스 없이 Enter)는 그 번호의 제안으로 바꿔 보낸다.
   // 제안은 보낸 뒤에 비운다. quick-replies가 이 훅 안쪽에서 돌 때도 프리셋 번호를 셀 제안 개수가 남아 있어야 하기 때문이다.
   on('prompt.submit', async ($, e, next) => {
     generation += 1
     const list = (await read($, suggestions)).filter(item => typeof item === 'string')
-    const text = e.origin?.kind === 'composer' ? expandNumbers(e.text, n => list[n - 1]) : e.text
+    const lookup = (n: number) => list[n - 1]
+    const text = e.origin?.kind === 'composer' ? expandNumbers(expandRanges(e.text, lookup), lookup) : e.text
     try {
       const result = await next(text === e.text ? e : { ...e, text })
       // 막혀서 들어가지 않은 글은 마지막 요청으로 남기지 않는다.
@@ -127,7 +128,16 @@ export const register: Register = on => {
   })
 
   // 입력창에 `$2 `처럼 번호 뒤에 스페이스를 치면 그 자리를 2번 제안으로 바꾼다. 제안은 늘 $1부터라 다른 모드의 번호를 몰라도 된다.
+  // `$1-$3 `처럼 범위를 치면 그 제안들을 한 줄씩 넣는다. 범위가 프리셋까지 닿으면 quick-replies에 넘긴다.
   on('prompt.edit', async ($, e, next) => {
+    const range = typedRange(e)
+    if (range !== undefined) {
+      const list = (await read($, suggestions)).filter(item => typeof item === 'string')
+      const text = rangeText(range, n => list[n - 1])
+      if (text !== undefined) {
+        return next({ ...e, start: range.start, inputText: text })
+      }
+    }
     const typed = typedNumber(e)
     if (typed !== undefined) {
       const list = (await read($, suggestions)).filter(item => typeof item === 'string')

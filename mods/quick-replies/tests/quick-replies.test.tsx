@@ -424,6 +424,56 @@ describe('quick-replies', () => {
     expect((await type('a$3', ' ')).text).toBe('a$3 ')
   })
 
+  test('입력창에 `$2-$4 `를 치면 다음 제안과 프리셋에 걸친 범위도 한 줄씩 넣는다', async ($, on) => {
+    inRepo(on, '/repo/one')
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' } as never, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    const type = (text: string, char: string) =>
+      ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string; cursor: number }> }).edit({
+        origin: { kind: 'composer' },
+        key: { key: char },
+        text,
+        cursor: text.length,
+        start: text.length,
+        end: text.length,
+        inputText: char,
+      })
+    expect((await type('$2-$4', ' ')).text).toBe('나\n지금 진행상황\n맞아 그렇게 진행해\n')
+    expect((await type('이거 봐줘 $4-$3', ' ')).text).toBe('이거 봐줘\n\n맞아 그렇게 진행해\n지금 진행상황\n')
+    expect((await type('$3-$5', ' ')).text).toBe('$3-$5 ')
+  })
+
+  test('범위를 바꿀 때 엔진에 넘기는 편집은 줄바꿈을 그대로 담고, 앞 글 끝의 공백부터 친 스페이스까지 덮는다', async ($, on) => {
+    inRepo(on, '/repo/one')
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' } as never, () => ({ value: { value: ['가'], version: 1 } }) as never)
+    const handed: { start: number; end: number; inputText: string }[] = []
+    on('prompt.edit', (_$, e) => {
+      handed.push({ start: e.start, end: e.end, inputText: e.inputText })
+      return { text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }
+    })
+    const text = '봐줘  $1-$2'
+    await ($.prompt as unknown as { edit: (e: unknown) => Promise<unknown> }).edit({
+      origin: { kind: 'composer' },
+      key: { key: ' ' },
+      text,
+      cursor: text.length,
+      start: text.length,
+      end: text.length,
+      inputText: ' ',
+    })
+    expect(handed).toEqual([{ start: 2, end: text.length, inputText: '\n\n가\n지금 진행상황\n' }])
+  })
+
+  test('스페이스 없이 `$2-$3`에서 Enter를 눌러도 범위의 문구로 바꿔 보낸다', async ($, on) => {
+    inRepo(on, '/repo/one')
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' } as never, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
+    on('prompt.submit', (_$, e) => ({ text: e.text }))
+    const submit = (text: string) =>
+      ($.prompt as unknown as { submit: (e: unknown) => Promise<{ text?: string }> }).submit({ origin: { kind: 'composer' }, text, wait: false })
+    expect((await submit('봐줘 $2-$3')).text).toBe('봐줘\n\n나\n지금 진행상황\n')
+    expect((await submit('$3-$9')).text).toBe('$3-$9')
+  })
+
   test('스페이스 없이 `$번호`에서 바로 Enter를 눌러도 프리셋으로 바꿔 보내고, `/명령` 프리셋 하나면 명령으로 실행한다', async ($, on) => {
     inRepo(on, '/repo/one', { global: [{ id: 'a', text: '지금 진행상황' }, { id: 'b', text: '/ux-writing 다듬어줘' }] })
     on('state.get', { plugin: 'next-prompts', key: 'suggestions' } as never, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)

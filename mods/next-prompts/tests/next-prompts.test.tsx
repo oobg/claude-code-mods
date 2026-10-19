@@ -309,6 +309,57 @@ describe('next-prompts', () => {
     expect(await type('$12', ' ')).toEqual({ text: '$12 ', cursor: 4 })
   })
 
+  test('입력창에 `$1-$3 `을 치면 그 범위의 제안을 한 줄씩 넣고, 맨 앞이 아니면 빈 줄을 둔다', async ($, on) => {
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: ['가', '나', '다'], version: 1 } }) as never)
+    on('prompt.edit', (_$, e) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
+    const type = (text: string, char: string) =>
+      ($.prompt as unknown as { edit: (e: unknown) => Promise<{ text: string; cursor: number }> }).edit({
+        origin: { kind: 'composer' },
+        key: { key: char },
+        text,
+        cursor: text.length,
+        start: text.length,
+        end: text.length,
+        inputText: char,
+      })
+    expect(await type('$1-$3', ' ')).toEqual({ text: '가\n나\n다\n', cursor: 6 })
+    expect(await type('이거 봐줘  $3-$2', ' ')).toEqual({ text: '이거 봐줘\n\n다\n나\n', cursor: 11 })
+    // 제안에 없는 번호가 끼면 프리셋일 수 있으니 그대로 둔다.
+    expect(await type('$2-$4', ' ')).toEqual({ text: '$2-$4 ', cursor: 6 })
+    expect(await type('a$1-$2', ' ')).toEqual({ text: 'a$1-$2 ', cursor: 7 })
+  })
+
+  test('범위를 바꿀 때 엔진에 넘기는 편집은 줄바꿈을 그대로 담고, 앞 글 끝의 공백부터 친 스페이스까지 덮는다', async ($, on) => {
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
+    const handed: { start: number; end: number; inputText: string }[] = []
+    on('prompt.edit', (_$, e) => {
+      handed.push({ start: e.start, end: e.end, inputText: e.inputText })
+      return { text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }
+    })
+    const text = '봐줘  $1-$2'
+    await ($.prompt as unknown as { edit: (e: unknown) => Promise<unknown> }).edit({
+      origin: { kind: 'composer' },
+      key: { key: ' ' },
+      text,
+      cursor: text.length,
+      start: text.length,
+      end: text.length,
+      inputText: ' ',
+    })
+    expect(handed).toEqual([{ start: 2, end: text.length, inputText: '\n\n가\n나\n' }])
+  })
+
+  test('스페이스 없이 `$1-$2`에서 Enter를 눌러도 범위의 제안으로 바꿔 보낸다', async ($, on) => {
+    on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: ['가', '나'], version: 1 } }) as never)
+    on('state.set', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { isSet: true, version: 2 } }) as never)
+    on('prompt.submit', (_$, e) => ({ text: e.text }))
+    const submit = (text: string) =>
+      ($.prompt as unknown as { submit: (e: unknown) => Promise<{ text?: string }> }).submit({ origin: { kind: 'composer' }, text, wait: false })
+    expect((await submit('$1-$2')).text).toBe('가\n나\n')
+    expect((await submit('봐줘 $2-$1')).text).toBe('봐줘\n\n나\n가\n')
+    expect((await submit('봐줘 $1-$3')).text).toBe('봐줘 $1-$3')
+  })
+
   test('스페이스 없이 `$2`에서 바로 Enter를 눌러도 2번 제안으로 바꿔 보내고, 보낸 뒤에 제안을 비운다', async ($, on) => {
     let stored: unknown = ['테스트 돌려줘', '커밋해줘']
     on('state.get', { plugin: 'next-prompts', key: 'suggestions' }, () => ({ value: { value: stored, version: 1 } }) as never)

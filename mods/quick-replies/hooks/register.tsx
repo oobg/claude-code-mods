@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Deleted, EditInput, Mode, Reply, Scope } from '../types'
-import { exclusiveBand, expandNumbers, numberLabel, typedAfterDollar, typedNumber, withBandSection } from './band'
+import { exclusiveBand, expandNumbers, expandRanges, numberLabel, rangeText, typedAfterDollar, typedNumber, typedRange, withBandSection } from './band'
 import { TITLE_SYSTEM, needsTitle, parseTitle, shortTitle, titlePrompt } from './title'
 
 export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞아 그렇게 진행해']
@@ -22,13 +22,24 @@ const compact = atom({ plugin: 'quick-replies', key: 'compact' } as const, null)
 // 이 모드의 상태가 아니라서 계약에 적지 않고, 모양도 믿지 않고 걸러 읽는다.
 const nextSuggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as never, [] as never)
 
-async function suggestionCount($: EngineInterface): Promise<number> {
+async function suggestionList($: EngineInterface): Promise<string[]> {
   try {
     const list: unknown = await read($, nextSuggestions)
-    return Array.isArray(list) ? list.filter(item => typeof item === 'string').length : 0
+    return Array.isArray(list) ? list.filter(item => typeof item === 'string') : []
   } catch {
-    return 0
+    return []
   }
+}
+
+async function suggestionCount($: EngineInterface): Promise<number> {
+  return (await suggestionList($)).length
+}
+
+// 다음 제안과 프리셋을 띠에 보이는 번호로 찾는다. 범위(`$2-$4`)는 둘에 걸칠 수 있어 함께 찾는다.
+async function numbered($: EngineInterface): Promise<(n: number) => string | undefined> {
+  const { global, project } = await current($)
+  const texts = [...(await suggestionList($)), ...[...global, ...project].map(reply => reply.text)]
+  return n => texts[n - 1]
 }
 
 const GLOBAL_KEY = 'global'
@@ -408,6 +419,13 @@ export const register: Register = on => {
       void (typed === 'e' ? openEditor($) : toggleCompact($))
       return box
     }
+    const range = typedRange(e)
+    if (range !== undefined && (await read($, mode)).kind === 'view') {
+      const text = rangeText(range, await numbered($))
+      if (text !== undefined) {
+        return next({ ...e, start: range.start, inputText: text })
+      }
+    }
     const typedN = typedNumber(e)
     if (typedN !== undefined && (await read($, mode)).kind === 'view') {
       const presets = await current($)
@@ -426,6 +444,7 @@ export const register: Register = on => {
       return next(e)
     }
     // 스페이스 없이 `$번호`에서 바로 Enter를 눌러도 그 번호의 프리셋으로 바꿔 보낸다. 다음 제안의 번호는 next-prompts가 바꾼다.
+    // `$번호-$번호` 범위는 다음 제안에 걸쳐도 여기서 함께 바꾼다.
     // 글 전체가 `/명령` 프리셋 하나면 클릭한 것처럼 명령으로 실행한다.
     if (shown.kind === 'view') {
       const { global, project } = await current($)
@@ -440,7 +459,7 @@ export const register: Register = on => {
         void $.prompt.fill({ text: '' })
         return { drop: `/${command.command} 프리셋을 실행해요` }
       }
-      const text = expandNumbers(e.text, lookup)
+      const text = expandNumbers(expandRanges(e.text, await numbered($)), lookup)
       return next(text === e.text ? e : { ...e, text })
     }
     if (shown.input === null) {

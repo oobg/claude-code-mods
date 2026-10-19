@@ -10,6 +10,7 @@
 // 띠를 합치는 순서는 모드마다 다르게 보이므로 번호를 여기서 매기지 않는다.
 // 입력창에 `$2 `, `$12 `처럼 번호 뒤에 스페이스를 치면 그 번호의 문구로 바뀐다(`typedNumber`). 빈 입력창의 숫자 하나는 더 이상 버튼을 누르지 않는다.
 // 스페이스 없이 `$12`에서 바로 Enter를 눌러도 보낼 때 문구로 바꾼다(`expandNumbers`).
+// `$2-$4 `처럼 범위를 치면 그 번호들의 문구를 한 줄씩 넣는다(`typedRange`, `expandRanges`).
 // `$e`, `$0`처럼 `$` 뒤의 글자 하나는 모드가 정한 동작을 부른다(`typedAfterDollar`).
 //
 // 한 모드가 띠를 혼자 써야 할 때(편집 화면 등)는 `exclusiveBand`로 만든 틀을 돌려준다.
@@ -64,6 +65,46 @@ export function expandNumbers(text: string, lookup: (n: number) => string | unde
   return text.replace(/(^|\s)\$([1-9][0-9]*)(?=\s|$)/g, (whole, before: string, digits: string) => {
     const phrase = lookup(Number(digits))
     return phrase === undefined ? whole : before + phrase
+  })
+}
+
+// `$2-$4`처럼 범위를 쳐서 여러 문구를 한 번에 넣는다. `$4-$2`처럼 거꾸로 치면 거꾸로 넣는다.
+// 문구마다 줄을 바꾸고, 글 맨 앞이 아니면 앞 글과 빈 줄 하나를 둔다. 앞 글 끝의 공백은 지운다.
+// 범위의 번호를 모두 `lookup`으로 찾을 수 있을 때만 바꾼다. 다음 제안과 프리셋이 섞인 범위는 둘 다 아는 quick-replies가 바꾼다.
+export type Range = { from: number; to: number; start: number }
+
+// 범위를 넣을 글. `start`는 범위가 덮는 자리의 처음이다. 찾을 수 없는 번호가 있으면 undefined.
+export function rangeText(range: Range, lookup: (n: number) => string | undefined): string | undefined {
+  const step = range.from <= range.to ? 1 : -1
+  let text = range.start === 0 ? '' : '\n\n'
+  for (let n = range.from; n !== range.to + step; n += step) {
+    const phrase = lookup(n)
+    if (phrase === undefined) {
+      return undefined
+    }
+    text += `${phrase}\n`
+  }
+  return text
+}
+
+// `$2-$4` 뒤에 스페이스를 치면 그 범위와 덮을 자리를 낸다. 자리는 앞 글 끝의 공백부터다.
+// 바꿀 때는 `next({ ...e, start: range.start, inputText: rangeText(range, lookup) })`로 친 스페이스까지 덮는다.
+export function typedRange(e: PromptEditInput): Range | undefined {
+  if (e.key === undefined || e.inputText !== ' ' || e.start !== e.end) {
+    return undefined
+  }
+  const match = /(?:^|\s)\$([1-9][0-9]*)-\$([1-9][0-9]*)$/.exec(e.text.slice(0, e.start))
+  if (match === null) {
+    return undefined
+  }
+  const start = e.text.slice(0, e.start - match[0].trimStart().length).trimEnd().length
+  return { from: Number(match[1]), to: Number(match[2]), start }
+}
+
+// 스페이스 없이 보낸 글에 남은 `$2-$4` 같은 범위를 문구들로 바꾼다. 바꾸는 규칙은 `typedRange`와 같다.
+export function expandRanges(text: string, lookup: (n: number) => string | undefined): string {
+  return text.replace(/(^|\s+)\$([1-9][0-9]*)-\$([1-9][0-9]*)(?=\s|$)/g, (whole, _before, from: string, to: string, start: number) => {
+    return rangeText({ from: Number(from), to: Number(to), start }, lookup) ?? whole
   })
 }
 
