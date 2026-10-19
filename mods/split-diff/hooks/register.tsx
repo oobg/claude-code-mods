@@ -261,20 +261,50 @@ async function drawEdit($: EngineInterface, e: Input, patch: FilePatch, columns:
 }
 
 async function drawBash($: EngineInterface, e: Input, above: unknown, bash: { files: FilePatch[]; moreFiles: number }, columns: number) {
-  const { Box, Text } = $.ui.resolve(e)
+  const { Box } = $.ui.resolve(e)
   const cwd = await $.session.cwd()
   return (
     <Box flexDirection="column">
       {above as never}
+      {summary($, e, bash, cwd)}
       {bash.files.map((patch, i) => (
         <Box key={`file:${i}`} flexDirection="column">
           {heading($, e, patch, cwd, false)}
           {sideBySide($, e, patch, columns, BASH_MAX_ROWS)}
         </Box>
       ))}
-      {bash.moreFiles > 0 ? (
-        <Text dimColor>{`${' '.repeat(INDENT)}… ${bash.moreFiles} more ${bash.moreFiles === 1 ? 'file' : 'files'}`}</Text>
-      ) : null}
+    </Box>
+  )
+}
+
+// 경로 칸은 가장 긴 경로에 맞추되, 이보다 긴 경로가 있어도 이 너비(칸)까지만 맞춘다.
+const SUMMARY_PATH_MAX = 60
+
+// 명령 하나가 파일을 둘 이상 바꿨으면 diff 위에 바뀐 파일 목록을 붙인다. 엔진이 diff를 넘기지 않은 파일은 개수만 적는다.
+function summary($: EngineInterface, e: Input, bash: { files: FilePatch[]; moreFiles: number }, cwd: string) {
+  const { Box, Text } = $.ui.resolve(e)
+  const total = bash.files.length + bash.moreFiles
+  if (total < 2) {
+    return null
+  }
+  const items = bash.files.map(patch => ({ patch, path: relative(patch.filePath, cwd), ...counts(patch.hunks) }))
+  const pathWidth = Math.min(SUMMARY_PATH_MAX, Math.max(...items.map(item => widthOf(item.path))))
+  const addWidth = Math.max(...items.map(item => (item.added > 0 ? `+${item.added}`.length : 0)))
+  const pad = ' '.repeat(INDENT)
+  const branch = (i: number) => (i === items.length - 1 && bash.moreFiles === 0 ? '└ ' : '├ ')
+  return (
+    <Box flexDirection="column">
+      <Text dimColor>{`${pad}${total} files changed`}</Text>
+      {items.map((item, i) => (
+        <Text key={`sum:${i}`}>
+          <Text dimColor>{pad + branch(i)}</Text>
+          {item.path + ' '.repeat(Math.max(0, pathWidth - widthOf(item.path)) + 2)}
+          <Text color="success">{(item.added > 0 ? `+${item.added}` : '').padEnd(addWidth)}</Text>
+          {item.removed > 0 ? <Text color="error">{` -${item.removed}`}</Text> : null}
+          {item.patch.kind === 'update' ? null : <Text dimColor>{item.patch.kind === 'create' ? '  (new)' : '  (deleted)'}</Text>}
+        </Text>
+      ))}
+      {bash.moreFiles > 0 ? <Text dimColor>{`${pad}└ … ${bash.moreFiles} more ${bash.moreFiles === 1 ? 'file' : 'files'}`}</Text> : null}
     </Box>
   )
 }

@@ -194,6 +194,28 @@ describe('split-diff Bash 결과 그리기', () => {
     await ui.unmount()
   })
 
+  test('파일을 둘 이상 바꿨으면 diff 위에 바뀐 파일 목록을 붙인다', async ($, on) => {
+    engine(on)
+    const props = { tool_use_id: 'toolu_5', tool: 'Bash', isErrored: false, output: bashOutput(BASH_DIFF) }
+    const ui = await $.ui.mount({ plugin: 'split-diff', surface: 'terminal', component: 'ToolResult', props: props as never, viewport: { columns: 160, rows: 40 } })
+    // 넘겨받은 3개와 표시하지 못한 2개를 합해 센다.
+    expect(await ui.find({ type: 'Text', text: /5 files changed/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '(new)' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '(deleted)' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /└ … 2 more files/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('파일 하나만 바꿨으면 목록을 붙이지 않는다', async ($, on) => {
+    engine(on)
+    const diff = { files: [BASH_DIFF.files[0]], moreFiles: 0 }
+    const props = { tool_use_id: 'toolu_6', tool: 'Bash', isErrored: false, output: bashOutput(diff) }
+    const ui = await $.ui.mount({ plugin: 'split-diff', surface: 'terminal', component: 'ToolResult', props: props as never, viewport: { columns: 160, rows: 40 } })
+    expect(await ui.find({ type: 'Text', text: /files changed/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: 'src/messages.ts' })).toBeDefined()
+    await ui.unmount()
+  })
+
   test(`파일 하나가 ${BASH_MAX_ROWS}줄을 넘으면 나머지는 줄 수만 적는다`, async ($, on) => {
     engine(on)
     const total = BASH_MAX_ROWS + 5

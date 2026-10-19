@@ -1,6 +1,6 @@
 {
   "name": "split-diff",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "터미널 폭이 120칸 이상이면 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어는 더 밝은 색으로 강조합니다",
   "author": {
     "name": "oobg"
