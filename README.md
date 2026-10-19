@@ -63,7 +63,7 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/paste-dark.gif">
 <img alt="key-assist: 붙여넣은 파일 이름이 @경로로 바뀐다" src="./docs/images/showcase/paste-light.gif" width="100%">
 </picture></a>
-<br><a href="./docs/key-assist.md"><b>key-assist</b></a> <img alt="macOS 전용" src="https://img.shields.io/badge/macOS%20%EC%A0%84%EC%9A%A9-A78BFA?style=flat-square"><br>
+<br><a href="./docs/key-assist.md"><b>key-assist</b></a> <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/badges/macos-dark.svg"><img alt="macOS 전용" src="./docs/images/badges/macos-light.svg" height="22"></picture><br>
 <sub>Finder에서 복사한 파일을 붙여넣으면 파일 이름이 <code>@경로</code>로 바뀝니다. Cmd+Z로 입력 내용을 되돌릴 수 있습니다</sub>
 </td>
 </tr>
@@ -83,7 +83,7 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/relaunch-dark.gif">
 <img alt="relaunch: Claude Code 업데이트 알림과 다시 열기 버튼" src="./docs/images/showcase/relaunch-light.gif" width="100%">
 </picture></a>
-<br><a href="./docs/relaunch.md"><b>relaunch</b></a> <img alt="Orca 전용" src="https://img.shields.io/badge/Orca%20%EC%A0%84%EC%9A%A9-A78BFA?style=flat-square"><br>
+<br><a href="./docs/relaunch.md"><b>relaunch</b></a> <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/badges/orca-dark.svg"><img alt="Orca 전용" src="./docs/images/badges/orca-light.svg" height="22"></picture><br>
 <sub>새 버전이 설치되면 입력창 위에 알립니다. Orca 탭에서 <code>다시 열기</code>를 누르면 Claude Code를 다시 시작하고 기존 대화를 이어서 엽니다</sub>
 </td>
 </tr>

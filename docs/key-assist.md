@@ -1,6 +1,6 @@
 # key-assist
 
-<img alt="macOS 전용" src="https://img.shields.io/badge/macOS%20%EC%A0%84%EC%9A%A9-A78BFA?style=flat-square">
+<picture><source media="(prefers-color-scheme: dark)" srcset="./images/badges/macos-dark.svg"><img alt="macOS 전용" src="./images/badges/macos-light.svg" height="22"></picture>
 
 [← README로 돌아가기](../README.md)
 

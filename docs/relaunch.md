@@ -1,6 +1,6 @@
 # relaunch
 
-<img alt="Orca 전용" src="https://img.shields.io/badge/Orca%20%EC%A0%84%EC%9A%A9-A78BFA?style=flat-square">
+<picture><source media="(prefers-color-scheme: dark)" srcset="./images/badges/orca-dark.svg"><img alt="Orca 전용" src="./images/badges/orca-light.svg" height="22"></picture>
 
 [← README로 돌아가기](../README.md)
 
@@ -28,6 +28,11 @@
 - `다시 열기`: Claude Code를 다시 시작합니다. 답변이 진행 중이면 끝난 뒤 다시 누르라고 알립니다.
 - `/relaunch`: Claude Code를 다시 시작합니다. 업데이트가 없어도 실행할 수 있고, 답변이 진행 중이면 끝난 뒤에 실행됩니다.
 - `/relaunch now`: 작업 중인 에이전트가 있어도 다시 시작합니다. 에이전트의 작업은 중단될 수 있습니다.
+
+<p><picture>
+<source media="(prefers-color-scheme: dark)" srcset="./images/showcase/relaunch-type-dark.gif">
+<img alt="입력창에 /relaunch를 치고 Enter를 누르면 같은 탭에서 새 버전으로 같은 대화가 열린다" src="./images/showcase/relaunch-type-light.gif" width="560">
+</picture></p>
 
 다시 열 수 없는 상황이면 Claude Code를 종료하지 않고, 이유와 직접 입력할 명령을 알려 줍니다.
 
