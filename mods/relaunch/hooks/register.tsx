@@ -4,8 +4,8 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Installed } from '../types'
 import { withBandSection } from './band'
 
-// 띠 안의 순서. 업데이트 알림은 드물고 중요해서 다음 제안(10)과 프리셋(20)보다 위에 둔다.
-const ORDER = 5
+// 띠 안의 순서. 업데이트 알림은 다음 제안(10)과 프리셋(20) 아래, 입력창 바로 위에 둔다.
+const ORDER = 30
 // 설치된 버전을 다시 보는 간격. 시작하고 조금 뒤에 한 번 보고, 그 뒤로는 이 간격마다 본다.
 const FIRST_CHECK_MS = 5_000
 const CHECK_EVERY_MS = 10 * 60_000
@@ -103,17 +103,21 @@ export function parseHelp(help: string): Map<string, Arity> {
   return spec
 }
 
-// 다시 열 때 빼는 옵션. 세션을 고르거나 새로 만드는 옵션(새 --resume과 부딪힌다), 새 워크트리나 다른 화면에 여는 옵션,
-// 한 번 출력하고 끝나는 옵션이다.
+// 다시 열 때 빼는 옵션. 세션을 고르는 옵션(새 --resume과 부딪힌다), 다른 화면에 여는 옵션, 한 번 출력하고 끝나는 옵션이다.
+// --name은 실행 중 /rename으로 바꾼 이름을 처음 이름으로 덮을 수 있어 뺀다.
 const DROPPED = new Set([
-  '-r', '--resume', '-c', '--continue', '--session-id', '--fork-session', '--from-pr', '--teleport',
-  '-w', '--worktree', '--tmux', '--bg', '--background', '--cloud', '--desktop', '--environment',
-  '-p', '--print', '-h', '--help', '-v', '--version',
+  '-r', '--resume', '-c', '--continue', '--session-id', '--fork-session', '--from-pr', '--teleport', '-n', '--name',
+  '--bg', '--background', '--cloud', '--desktop', '--environment', '-p', '--print', '-h', '--help', '-v', '--version',
 ])
+// 있으면 다시 열지 않는 옵션. 빼고 열면 처음과 다른 작업 폴더(워크트리)에서 열린다.
+const REFUSED = new Set(['-w', '--worktree', '--tmux'])
+
+export type Picked = { kept: string[] } | { refused: string }
 
 // 처음 실행한 인자(argv[0] 빼고)에서 다시 붙일 인자를 고른다. 위치 인자(처음 보낸 프롬프트)와 DROPPED 옵션은 값까지 뺀다.
-// 도움말에 없는 옵션은 값을 받지 않는 것으로 보고 그대로 둔다.
-export function keptArgs(args: readonly string[], spec: ReadonlyMap<string, Arity>): string[] {
+// 확신할 수 없으면 고르지 않고 이유를 낸다: 도움말에 없는 옵션, 워크트리 옵션, 값이 있어도 되고 없어도 되는 옵션 뒤에
+// 낱말이 따로 와서 그 옵션의 값인지 처음 프롬프트인지 알 수 없을 때.
+export function pickArgs(args: readonly string[], spec: ReadonlyMap<string, Arity>): Picked {
   const kept: string[] = []
   let i = 0
   while (i < args.length) {
@@ -125,27 +129,46 @@ export function keptArgs(args: readonly string[], spec: ReadonlyMap<string, Arit
     if (!arg.startsWith('-') || arg === '-') {
       continue
     }
-    const name = arg.includes('=') ? arg.slice(0, arg.indexOf('=')) : arg
-    const arity = arg.includes('=') ? 'none' : (spec.get(name) ?? 'none')
+    const isJoined = arg.includes('=')
+    const name = isJoined ? arg.slice(0, arg.indexOf('=')) : arg
+    const arity = spec.get(name)
+    if (arity === undefined) {
+      return { refused: `도움말에 없는 옵션 \`${name}\`` }
+    }
+    if (REFUSED.has(name)) {
+      return { refused: `\`${name}\`` }
+    }
+    const isDropped = DROPPED.has(name)
     const values: string[] = []
     const isValue = (next: string | undefined) => next !== undefined && (!next.startsWith('-') || next === '-')
-    if (arity === 'required' && i < args.length) {
+    if (isJoined) {
+      // 값이 =로 붙어 있다.
+    } else if (arity === 'required' && i < args.length) {
       values.push(args[i]!)
       i += 1
-    } else if (arity === 'optional' && isValue(args[i])) {
-      values.push(args[i]!)
-      i += 1
-    } else if (arity === 'variadic' || arity === 'optional-variadic') {
+    } else if (arity === 'variadic') {
       while (isValue(args[i])) {
         values.push(args[i]!)
         i += 1
       }
+    } else if ((arity === 'optional' || arity === 'optional-variadic') && isValue(args[i])) {
+      // 빼는 옵션이면 뒤 낱말이 값이든 프롬프트든 함께 빼면 된다. 남기는 옵션이면 어느 쪽인지 알 수 없다.
+      if (!isDropped) {
+        return { refused: `\`${name}\` 뒤의 \`${args[i]}\`` }
+      }
+      while (isValue(args[i])) {
+        i += 1
+        if (arity === 'optional') {
+          break
+        }
+      }
     }
-    if (!DROPPED.has(name)) {
-      kept.push(arg, ...values)
+    if (isDropped) {
+      continue
     }
+    kept.push(arg, ...values)
   }
-  return kept
+  return { kept }
 }
 
 // 셸에 그대로 칠 수 있게 감싼다. 안전한 글자만 있으면 그대로 둔다.
@@ -153,23 +176,42 @@ export function shellQuote(arg: string): string {
   return /^[A-Za-z0-9_@%+=:,.\/-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`
 }
 
-// 다시 열 명령. 실행 파일은 처음 실행한 이름을 쓰되, 버전 폴더 안의 실행 파일을 직접 띄웠다면 새 버전이 열리게 `claude`로 바꾼다.
-export function resumeCommand(argv0: string, kept: readonly string[], sessionId: string | undefined): string {
-  const program = argv0 === '' || argv0.includes('/versions/') ? 'claude' : argv0
+// 다시 열 인자. 처음 실행한 이름이 `claude`이거나 버전 폴더 안의 실행 파일이면, 이 claude의 PATH에서 찾은 `claude`(installed)로 연다.
+// 셸의 PATH가 달라도 업데이트를 확인하고 도움말을 읽은 바로 그 실행 파일이 열린다.
+export function resumeArgv(argv0: string, kept: readonly string[], sessionId: string | undefined, installed = 'claude'): string[] {
+  const isDefault = argv0 === '' || argv0 === 'claude' || argv0.includes('/versions/')
   const resume = sessionId === undefined ? [] : ['--resume', sessionId]
-  return [program, ...kept, ...resume].map(shellQuote).join(' ')
+  return [isDefault ? installed : argv0, ...kept, ...resume]
 }
 
-// `hooks/argv.pl`이 낸 16진수 줄을 인자로 되돌린다.
-export function decodeArgs(stdout: string): string[] {
+// 다시 여는 스크립트. 옵션 값(비밀이 든 프롬프트일 수도 있다)을 셸에 직접 치면 화면과 셸 기록에 남으므로,
+// 본인만 읽을 수 있는 파일에 쓰고 셸에는 `/bin/sh <파일>`만 친다. 실행되면 먼저 자기 자신을 지우고, 지우지 못하면 실행하지 않는다.
+// 셸이 파일을 읽으니 줄바꿈이 든 값도 터미널을 거치지 않고, 별칭도 거치지 않는다(커널에서 읽은 인자에는 별칭이 붙인 옵션이 이미 들어 있다).
+export function launchScript(argv: readonly string[]): string {
+  return `#!/bin/sh\n/bin/rm -f -- "$0" || exit 1\nexec ${argv.map(shellQuote).join(' ')}\n`
+}
+
+// `hooks/argv.pl`이 낸 16진수 줄을 인자로 되돌린다. UTF-8로 읽을 수 없는 인자가 있으면 undefined다(깨진 글자로 바꿔 다시 붙이지 않는다).
+export function decodeArgs(stdout: string): string[] | undefined {
   const decoder = new TextDecoder()
-  return stdout
-    .split('\n')
-    .slice(0, -1)
-    .map(line => decoder.decode(new Uint8Array((line.match(/../g) ?? []).map(byte => parseInt(byte, 16)))))
+  const encoder = new TextEncoder()
+  const args: string[] = []
+  for (const line of stdout.split('\n').slice(0, -1)) {
+    const hex = (line.match(/../g) ?? []).join('')
+    const text = decoder.decode(new Uint8Array((line.match(/../g) ?? []).map(byte => parseInt(byte, 16))))
+    // 다시 바이트로 바꿔 원본과 같아야 제대로 읽은 것이다.
+    const back = Array.from(encoder.encode(text), byte => byte.toString(16).padStart(2, '0')).join('')
+    if (back !== hex.toLowerCase()) {
+      return undefined
+    }
+    args.push(text)
+  }
+  return args
 }
 
-const manual = (command: string) => `직접 /exit 한 뒤 \`${command}\`로 다시 열어 주세요.`
+
+// 다시 여는 스크립트 이름의 앞부분. 실행되지 않고 남은 스크립트는 세션이 시작할 때 한 시간이 지난 것부터 지운다.
+const SCRIPT_PREFIX = 'claude-relaunch-script.'
 
 let isRelaunching = false
 
@@ -193,29 +235,53 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
           .run(['perl', `${$.plugin.root}/hooks/argv.pl`, claude.pid], { timeoutMs: 5_000 })
           .then(run => (run.exitCode === 0 ? decodeArgs(run.stdout) : undefined))
           .catch(() => undefined)
-  const help = await $.process.run(['claude', '--help'], { timeoutMs: 10_000 }).catch(() => undefined)
+  // 업데이트 확인과 같은 `claude`를 절대 경로로 찾아, 그 도움말을 읽고 그 경로로 다시 연다.
+  const which = await $.process.run(['/bin/sh', '-c', 'command -v claude'], { timeoutMs: 5_000 }).catch(() => undefined)
+  const installed = which?.exitCode === 0 && which.stdout.trim().startsWith('/') ? which.stdout.trim() : undefined
+  const help = installed === undefined ? undefined : await $.process.run([installed, '--help'], { timeoutMs: 10_000 }).catch(() => undefined)
   const spec = parseHelp(help?.exitCode === 0 ? help.stdout : '')
   // 도움말을 거의 못 읽었으면 어느 인자가 옵션 값인지 알 수 없다.
   const isReadable = argv !== undefined && argv.length > 0 && spec.size >= 10
-  const command = isReadable ? resumeCommand(argv[0]!, keptArgs(argv.slice(1), spec), resumeId) : resumeCommand('claude', [], resumeId)
-  if (!isSessionId(sessionId)) {
-    return `세션 id를 알아보지 못했어요. ${manual(command)}`
-  }
+  const picked = isReadable ? pickArgs(argv.slice(1), spec) : undefined
 
+  // 옵션을 고를 수 있으면 다시 여는 스크립트를 미리 써 둔다. 자동으로 열지 못해도 사람이 그 스크립트로 열 수 있다.
+  const tmp = ((await $.env.get('TMPDIR')) ?? '/tmp').replace(/\/$/, '')
+  let script: string | undefined
+  if (picked !== undefined && 'kept' in picked && isSessionId(sessionId)) {
+    // mktemp로 본인만 읽을 수 있는 새 파일을 배타적으로 만든다. 있던 파일을 지우고 같은 이름으로 다시 만들지 않는다.
+    // 내용을 다 쓰지 못하면 만든 파일을 지운다.
+    const written = await $.process
+      .run(['/bin/sh', '-c', `f=$(mktemp "$1/${SCRIPT_PREFIX}XXXXXXXX") || exit 1; cat > "$f" && printf %s "$f" || { rm -f -- "$f"; exit 1; }`, 'sh', tmp], {
+        stdin: launchScript(resumeArgv(argv![0]!, picked.kept, resumeId, installed)),
+        timeoutMs: 5_000,
+      })
+      .catch(() => undefined)
+    script = written?.exitCode === 0 && written.stdout.startsWith(`${tmp}/${SCRIPT_PREFIX}`) ? written.stdout : undefined
+  }
+  const command = script === undefined ? undefined : `/bin/sh ${shellQuote(script)}`
+  const bare = resumeId === undefined ? 'claude' : `claude --resume ${resumeId}`
+  const manual =
+    command === undefined
+      ? `직접 /exit 한 뒤 처음 옵션을 붙여 \`${bare}\`처럼 다시 열어 주세요.`
+      : `직접 /exit 한 뒤 \`${command}\`로 다시 열어 주세요. 처음 옵션을 그대로 붙여 엽니다. 이 파일은 한 시간이 지난 뒤 Claude Code 세션이 시작될 때 지워집니다.`
+
+  if (!isSessionId(sessionId)) {
+    return `세션 id를 알아보지 못했어요. ${manual}`
+  }
   const handle = await $.env.get('ORCA_TERMINAL_HANDLE')
   if (!handle) {
-    return `Orca 터미널 탭에서만 자동으로 다시 열 수 있어요. ${manual(command)}`
+    return `Orca 터미널 탭에서만 자동으로 다시 열 수 있어요. ${manual}`
   }
   const orca = await $.process.run(['orca', '--version'], { timeoutMs: 5_000 }).catch(() => undefined)
   if (orca?.exitCode !== 0) {
-    return `orca 명령을 찾지 못했어요. ${manual(command)}`
+    return `orca 명령을 찾지 못했어요. ${manual}`
   }
   // Orca를 다시 시작하면 핸들이 바뀐다. 이 탭에 글자를 넣을 수 있는지 끝내기 전에 확인한다.
   const tab = await $.process
     .run(['orca', 'terminal', 'show', '--terminal', handle, '--json'], { timeoutMs: 5_000 })
     .catch(() => undefined)
   if (!isWritable(tab?.exitCode === 0 ? tab.stdout : '')) {
-    return `Orca가 이 탭을 찾지 못했어요. ${manual(command)}`
+    return `Orca가 이 탭을 찾지 못했어요. ${manual}`
   }
 
   // 서브에이전트나 팀원이 일하는 중이면 끊기니 먼저 묻는다. 백그라운드 셸 작업은 모드가 볼 수 없다.
@@ -225,13 +291,18 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
   }
 
   if (claude === undefined) {
-    return `이 claude를 띄운 셸을 확인하지 못했어요. ${manual(command)}`
+    return `이 claude를 띄운 셸을 확인하지 못했어요. ${manual}`
   }
-  if (!isReadable) {
-    return `처음 실행할 때 붙인 옵션을 읽지 못해 끝내지 않았어요. 직접 /exit 한 뒤 처음 옵션을 붙여 \`${command}\`처럼 다시 열어 주세요.`
+  if (picked === undefined) {
+    return `처음 실행할 때 붙인 옵션을 읽지 못해 끝내지 않았어요. ${manual}`
+  }
+  if ('refused' in picked) {
+    return `처음 옵션을 그대로 다시 붙일 수 없어 끝내지 않았어요(${picked.refused}). ${manual}`
+  }
+  if (command === undefined) {
+    return `다시 여는 스크립트를 쓰지 못해 끝내지 않았어요. ${manual}`
   }
 
-  const tmp = ((await $.env.get('TMPDIR')) ?? '/tmp').replace(/\/$/, '')
   const helper = await $.process
     .run([
       '/bin/sh',
@@ -245,10 +316,11 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
       handle,
       `${tmp}/claude-relaunch.${sessionId}`,
       command,
+      script!,
     ])
     .catch(() => undefined)
   if (helper?.exitCode !== 0) {
-    return `다시 여는 도우미를 띄우지 못했어요. ${manual(command)}`
+    return `다시 여는 도우미를 띄우지 못했어요. ${manual}`
   }
 
   isRelaunching = true
@@ -263,7 +335,10 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
       $.ui.toast('Claude Code를 끝내지 못했어요. 다시 시도하거나 직접 /exit 해 주세요')
     })
   })
-  return `Claude Code를 다시 열어요. 다시 열리지 않으면 \`${command}\`로 열어 주세요.`
+  // 처음 권한 옵션을 다시 걸면, 실행 중 낮춘 권한이 처음 값으로 돌아갈 수 있어 알린다.
+  const permission = picked.kept.filter(arg => /^--(permission-mode|dangerously-skip-permissions|allow-dangerously-skip-permissions)\b/.test(arg))
+  const note = permission.length > 0 ? ` 처음 권한 옵션(${permission.map(arg => `\`${arg.split('=')[0]}\``).join(', ')})도 다시 붙어요.` : ''
+  return `Claude Code를 다시 열어요.${note} 다시 열리지 않으면 \`${command}\`로 열어 주세요.`
 }
 
 let isChecking = false
@@ -322,6 +397,15 @@ export const register: Register = on => {
       argumentHint: '[now]',
     })
     void reportRelaunched($).catch(() => {})
+    void $.env
+      .get('TMPDIR')
+      .then(dir =>
+        $.process.run(
+          ['/usr/bin/find', (dir ?? '/tmp').replace(/\/$/, ''), '-maxdepth', '1', '-name', `${SCRIPT_PREFIX}*`, '-type', 'f', '-mmin', '+60', '-delete'],
+          { timeoutMs: 5_000 },
+        ),
+      )
+      .catch(() => {})
     $.clock.after(FIRST_CHECK_MS, () => void checkInstalled($))
     $.clock.every(CHECK_EVERY_MS, () => void checkInstalled($))
     return result
@@ -344,7 +428,8 @@ export const register: Register = on => {
       below,
       'relaunch',
       ORDER,
-      <Box key="relaunch" flexDirection="row" columnGap={1}>
+      // 오른쪽에 붙여, 번호가 붙은 제안·프리셋 줄과 구분되게 한다.
+      <Box key="relaunch" flexDirection="row" justifyContent="flex-end" columnGap={1} width="100%">
         <Text dimColor>{`Claude Code 업데이트됨 ${shown.from} → ${shown.to}`}</Text>
         <Button
           key="relaunch:go"

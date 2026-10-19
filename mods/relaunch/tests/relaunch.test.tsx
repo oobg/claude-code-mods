@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { decodeArgs, isNewer, isShell, isWritable, keptArgs, parseHelp, parseProbe, parseVersion, resumeCommand, shellQuote } from '../hooks/register'
+import { decodeArgs, isNewer, isShell, isWritable, parseHelp, pickArgs, parseProbe, parseVersion, launchScript, resumeArgv, shellQuote } from '../hooks/register'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -76,41 +76,62 @@ describe('relaunch', () => {
 
   test('처음 옵션은 값까지 남기고, 세션을 고르는 옵션과 처음 프롬프트는 뺀다', () => {
     const spec = parseHelp(HELP)
-    expect(keptArgs(['--dangerously-skip-permissions', '--model', 'opus', '버그 고쳐줘'], spec)).toEqual([
-      '--dangerously-skip-permissions',
-      '--model',
-      'opus',
-    ])
-    expect(keptArgs(['-c', '--plugin-dir', '/a/b', '--plugin-dir', '/c', '--append-system-prompt', '두 단어'], spec)).toEqual([
-      '--plugin-dir',
-      '/a/b',
-      '--plugin-dir',
-      '/c',
-      '--append-system-prompt',
-      '두 단어',
-    ])
-    // --resume은 값이 있든 없든 값까지 뺀다. =로 붙은 값도 그대로 다룬다.
-    expect(keptArgs(['--resume', 'abc', '--permission-mode=plan'], spec)).toEqual(['--permission-mode=plan'])
-    expect(keptArgs(['-r', '--model', 'opus'], spec)).toEqual(['--model', 'opus'])
+    const kept = (args: string[]) => pickArgs(args, spec)
+    expect(kept(['--dangerously-skip-permissions', '--model', 'opus', '버그 고쳐줘'])).toEqual({
+      kept: ['--dangerously-skip-permissions', '--model', 'opus'],
+    })
+    expect(kept(['-c', '--plugin-dir', '/a/b', '--plugin-dir', '/c', '--append-system-prompt', '두 단어'])).toEqual({
+      kept: ['--plugin-dir', '/a/b', '--plugin-dir', '/c', '--append-system-prompt', '두 단어'],
+    })
+    // --resume은 값이 있든 없든 함께 뺀다. =로 붙은 값은 한 덩어리다.
+    expect(kept(['--resume', 'abc', '--permission-mode=plan'])).toEqual({ kept: ['--permission-mode=plan'] })
+    expect(kept(['-r', '--model', 'opus'])).toEqual({ kept: ['--model', 'opus'] })
     // 여러 값을 받는 옵션은 다음 옵션 전까지 받는다. -- 뒤는 모두 위치 인자다.
-    expect(keptArgs(['--add-dir', 'x', 'y', '--verbose', '--', '--model'], spec)).toEqual(['--add-dir', 'x', 'y', '--verbose'])
-    // 새 워크트리를 만드는 옵션은 다시 붙이지 않는다. 도움말에 없는 옵션은 그대로 둔다.
-    expect(keptArgs(['-w', 'feat', '--tmux', '--some-new-flag'], spec)).toEqual(['--some-new-flag'])
+    expect(kept(['--add-dir', 'x', 'y', '--verbose', '--', '--model'])).toEqual({ kept: ['--add-dir', 'x', 'y', '--verbose'] })
+    expect(kept(['--debug=api', '--verbose'])).toEqual({ kept: ['--debug=api', '--verbose'] })
+    // 실행 중 /rename으로 바꾼 이름을 덮지 않게 --name은 뺀다.
+    expect(kept(['--name', 'initial', '--model', 'opus'])).toEqual({ kept: ['--model', 'opus'] })
   })
 
-  test('셸에 칠 수 있게 감싸고, 버전 폴더의 실행 파일은 claude로 바꾼다', () => {
+  test('확신할 수 없는 옵션이 있으면 고르지 않는다', () => {
+    const spec = parseHelp(HELP)
+    const refused = (args: string[]) => {
+      const picked = pickArgs(args, spec)
+      return 'refused' in picked ? picked.refused : undefined
+    }
+    // 도움말에 없는 옵션은 값을 받는지 알 수 없다.
+    expect(refused(['--some-new-option', 'value', '--model', 'opus'])).toContain('--some-new-option')
+    // 워크트리 옵션을 빼고 열면 다른 폴더에서 열린다.
+    expect(refused(['-w', 'feat'])).toContain('-w')
+    expect(refused(['--tmux'])).toContain('--tmux')
+    expect(refused(['--tmux=classic'])).toContain('--tmux')
+    expect(refused(['--settings', '{"env":{"API_KEY":"secret"}}'])).toBe(undefined)
+    // 값이 있어도 되고 없어도 되는 옵션 뒤 낱말은 그 값인지 처음 프롬프트인지 알 수 없다.
+    expect(refused(['--debug', '버그 고쳐줘'])).toContain('--debug')
+    // 줄바꿈이나 JSON이 든 값도 스크립트 파일로 넘기므로 그대로 붙인다.
+    expect(refused(['--append-system-prompt', 'a\nb'])).toBe(undefined)
+  })
+
+  test('다시 열 인자를 고르고, 스크립트에 감싸 쓴다', () => {
     expect(shellQuote('--model')).toBe('--model')
     expect(shellQuote('두 단어')).toBe("'두 단어'")
     expect(shellQuote("it's")).toBe("'it'\\''s'")
     expect(shellQuote('')).toBe("''")
-    expect(resumeCommand('claude', ['--model', 'opus'], 'abc')).toBe('claude --model opus --resume abc')
-    expect(resumeCommand('/Users/me/.local/share/claude/versions/2.1.303', [], 'abc')).toBe('claude --resume abc')
-    expect(resumeCommand('/opt/bin/claude', [], undefined)).toBe('/opt/bin/claude')
+    // claude나 버전 폴더의 실행 파일로 띄웠으면 이 claude의 PATH에서 찾은 실행 파일로 연다. 다른 경로는 그대로 쓴다.
+    expect(resumeArgv('claude', ['--model', 'opus'], 'abc', '/u/.local/bin/claude')).toEqual(['/u/.local/bin/claude', '--model', 'opus', '--resume', 'abc'])
+    expect(resumeArgv('/u/.local/share/claude/versions/2.1.303', [], 'abc', '/u/.local/bin/claude')).toEqual(['/u/.local/bin/claude', '--resume', 'abc'])
+    expect(resumeArgv('/opt/my bin/claude', [], undefined)).toEqual(['/opt/my bin/claude'])
+    // 스크립트는 먼저 자기 자신을 지우고, 줄바꿈이 든 값도 따옴표 안에 그대로 둔다.
+    expect(launchScript(['/u/claude', '--append-system-prompt', "a\nit's"])).toBe(
+      "#!/bin/sh\n/bin/rm -f -- \"$0\" || exit 1\nexec /u/claude --append-system-prompt 'a\nit'\\''s'\n",
+    )
   })
 
   test('perl이 낸 16진수 줄을 인자로 되돌린다', () => {
     const hex = (text: string) => Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, '0')).join('')
     expect(decodeArgs(['claude', '두 단어', 'a\nb', ''].map(hex).join('\n') + '\n')).toEqual(['claude', '두 단어', 'a\nb', ''])
+    // UTF-8로 읽을 수 없는 인자는 깨진 글자로 바꾸지 않고 읽기를 포기한다.
+    expect(decodeArgs('636c61756465\nff\n')).toBe(undefined)
   })
 })
 
@@ -125,10 +146,13 @@ const HELP = [
   '  -c, --continue                        Continue the most recent conversation in',
   '  --dangerously-skip-permissions        Bypass all permission checks.',
   '  -d, --debug [filter]                  Enable debug mode with optional category',
+  '  --mcp-config <configs...>             Load MCP servers from JSON files or',
   '  --model <model>                       Model for the current session. Provide',
+  '  -n, --name <name>                     Set a display name for this session',
   '  --permission-mode <mode>              Permission mode to use for the session',
   '  --plugin-dir <path>                   Load a plugin from a directory or .zip',
   '  -r, --resume [value]                  Resume a conversation by session ID, or',
+  '  --settings <file-or-json>             Path to a settings JSON file or a JSON',
   '  --tmux                                Create a tmux session for the worktree',
   '  --verbose                             Override verbose mode setting from config',
   '  -w, --worktree [name]                 Create a new git worktree for this session',
@@ -141,7 +165,7 @@ const SID = '6ad585d4-6674-43ee-8e41-fcfbf4f13554'
 const ORCA = { ORCA_TERMINAL_HANDLE: 'term_1', TMPDIR: '/tmp/' }
 const PROBE = '74754 74635 ttys012  claude\nMon Oct 19 11:28:28 2026\n74635 ttys012  -/bin/zsh\nMon Oct 19 9:28:27 2026\n'
 
-type World = { running: string; installed: string; agents: string[]; helpers: string[][]; argv: string[] | null }
+type World = { running: string; installed: string; agents: string[]; helpers: string[][]; argv: string[] | null; scripts: Record<string, string> }
 
 // `world.running`이 돌고 있고, `claude --version`은 `world.installed`를 답한다. orca와 ps는 모든 확인을 통과하게 답한다.
 function session(on: On, env: Record<string, string>, world: Partial<World> = {}) {
@@ -150,6 +174,7 @@ function session(on: On, env: Record<string, string>, world: Partial<World> = {}
     installed: '2.1.304',
     agents: [],
     helpers: [],
+    scripts: {},
     argv: ['claude', '--dangerously-skip-permissions', '--model', 'opus', '버그 고쳐줘'],
     ...world,
   }
@@ -166,8 +191,11 @@ function session(on: On, env: Record<string, string>, world: Partial<World> = {}
   on('agent.list', () => ({ value: w.agents.map((status, i) => ({ id: `a${i}`, status })) }) as never)
   on('process.run', (_$, e) => {
     const argv = (e as { argv: string[] }).argv
-    if (argv[0] === 'claude' && argv[1] === '--help') {
+    if (argv[1] === '--help') {
       return ok(HELP)
+    }
+    if (argv[0] === '/bin/sh' && argv[2] === 'command -v claude') {
+      return ok('/usr/local/bin/claude\n')
     }
     if (argv[0] === 'claude') {
       return ok(`${w.installed} (Claude Code)\n`)
@@ -185,6 +213,14 @@ function session(on: On, env: Record<string, string>, world: Partial<World> = {}
     }
     if (argv[0] === '/bin/sh' && argv[2]?.startsWith('ps ')) {
       return ok(PROBE)
+    }
+    if (argv[0] === '/bin/sh' && argv[2]?.startsWith('f=$(mktemp')) {
+      const path = `${argv[4]}/claude-relaunch-script.TEST1234`
+      w.scripts[path] = (e as { init?: { stdin?: string } }).init?.stdin ?? ''
+      return ok(path)
+    }
+    if (argv[0] === '/usr/bin/find') {
+      return ok('')
     }
     if (argv[0] === '/bin/sh' && argv[2]?.startsWith('nohup ')) {
       w.helpers.push(argv.slice(3))
@@ -218,7 +254,7 @@ describe('relaunch 다시 열기', () => {
     await start($)
     const { text } = await $.command.run({ command: 'relaunch', args: '' } as never)
     expect(text).toContain('Orca 터미널 탭에서만')
-    expect(text).toContain(`--resume ${SID}`)
+    expect(text).toContain('/bin/sh /tmp/claude-relaunch-script.TEST1234')
     await clock.advance(2_000)
     expect(exits).toEqual([])
     expect(world.helpers).toEqual([])
@@ -229,6 +265,7 @@ describe('relaunch 다시 열기', () => {
     await start($)
     const { text } = await $.command.run({ command: 'relaunch', args: '' } as never)
     expect(text).toContain('Claude Code를 다시 열어요')
+    expect(text).toContain('처음 권한 옵션(`--dangerously-skip-permissions`)도 다시 붙어요')
     expect(world.helpers).toEqual([
       [
         expect.stringMatching(/\/hooks\/relaunch\.sh$/),
@@ -238,9 +275,13 @@ describe('relaunch 다시 열기', () => {
         'Mon Oct 19 9:28:27 2026',
         'term_1',
         `/tmp/claude-relaunch.${SID}`,
-        `claude --dangerously-skip-permissions --model opus --resume ${SID}`,
+        '/bin/sh /tmp/claude-relaunch-script.TEST1234',
+        '/tmp/claude-relaunch-script.TEST1234',
       ],
     ])
+    expect(world.scripts).toEqual({
+      '/tmp/claude-relaunch-script.TEST1234': `#!/bin/sh\n/bin/rm -f -- "$0" || exit 1\nexec /usr/local/bin/claude --dangerously-skip-permissions --model opus --resume ${SID}\n`,
+    })
     expect(exits).toEqual([])
     await clock.advance(600)
     expect(exits).toEqual(['exit'])
