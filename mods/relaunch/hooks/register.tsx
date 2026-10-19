@@ -80,8 +80,94 @@ export function isWritable(stdout: string): boolean {
 // 세션 id는 셸에 그대로 쳐 넣으니 UUID 모양만 받는다.
 const isSessionId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
-export const resumeCommand = (sessionId: string | undefined) =>
-  sessionId === undefined ? 'claude' : `claude --resume ${sessionId}`
+// 옵션이 값을 받는 방식. `<값>`은 꼭, `[값]`은 있으면, `...`은 다음 옵션 전까지 여러 개를 받는다.
+export type Arity = 'none' | 'required' | 'optional' | 'variadic' | 'optional-variadic'
+
+// `claude --help`의 Options 절에서 옵션 이름마다 값을 받는 방식을 읽는다. `-c, --continue`처럼 별명도 같은 방식이다.
+export function parseHelp(help: string): Map<string, Arity> {
+  const spec = new Map<string, Arity>()
+  const options = help.split(/\n(?=Commands:)/)[0] ?? ''
+  for (const line of options.split('\n')) {
+    const match = /^ {2}(-{1,2}[\w-]+(?:, -{1,2}[\w-]+)*)(?: (<[^>]*>|\[[^\]]*\]))?(?: {2,}|$)/.exec(line)
+    if (match === null) {
+      continue
+    }
+    const value = match[2] ?? ''
+    const isMany = value.endsWith('...>') || value.endsWith('...]')
+    const arity: Arity =
+      value === '' ? 'none' : value.startsWith('<') ? (isMany ? 'variadic' : 'required') : isMany ? 'optional-variadic' : 'optional'
+    for (const name of match[1]!.split(', ')) {
+      spec.set(name, arity)
+    }
+  }
+  return spec
+}
+
+// 다시 열 때 빼는 옵션. 세션을 고르거나 새로 만드는 옵션(새 --resume과 부딪힌다), 새 워크트리나 다른 화면에 여는 옵션,
+// 한 번 출력하고 끝나는 옵션이다.
+const DROPPED = new Set([
+  '-r', '--resume', '-c', '--continue', '--session-id', '--fork-session', '--from-pr', '--teleport',
+  '-w', '--worktree', '--tmux', '--bg', '--background', '--cloud', '--desktop', '--environment',
+  '-p', '--print', '-h', '--help', '-v', '--version',
+])
+
+// 처음 실행한 인자(argv[0] 빼고)에서 다시 붙일 인자를 고른다. 위치 인자(처음 보낸 프롬프트)와 DROPPED 옵션은 값까지 뺀다.
+// 도움말에 없는 옵션은 값을 받지 않는 것으로 보고 그대로 둔다.
+export function keptArgs(args: readonly string[], spec: ReadonlyMap<string, Arity>): string[] {
+  const kept: string[] = []
+  let i = 0
+  while (i < args.length) {
+    const arg = args[i]!
+    i += 1
+    if (arg === '--') {
+      break
+    }
+    if (!arg.startsWith('-') || arg === '-') {
+      continue
+    }
+    const name = arg.includes('=') ? arg.slice(0, arg.indexOf('=')) : arg
+    const arity = arg.includes('=') ? 'none' : (spec.get(name) ?? 'none')
+    const values: string[] = []
+    const isValue = (next: string | undefined) => next !== undefined && (!next.startsWith('-') || next === '-')
+    if (arity === 'required' && i < args.length) {
+      values.push(args[i]!)
+      i += 1
+    } else if (arity === 'optional' && isValue(args[i])) {
+      values.push(args[i]!)
+      i += 1
+    } else if (arity === 'variadic' || arity === 'optional-variadic') {
+      while (isValue(args[i])) {
+        values.push(args[i]!)
+        i += 1
+      }
+    }
+    if (!DROPPED.has(name)) {
+      kept.push(arg, ...values)
+    }
+  }
+  return kept
+}
+
+// 셸에 그대로 칠 수 있게 감싼다. 안전한 글자만 있으면 그대로 둔다.
+export function shellQuote(arg: string): string {
+  return /^[A-Za-z0-9_@%+=:,.\/-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`
+}
+
+// 다시 열 명령. 실행 파일은 처음 실행한 이름을 쓰되, 버전 폴더 안의 실행 파일을 직접 띄웠다면 새 버전이 열리게 `claude`로 바꾼다.
+export function resumeCommand(argv0: string, kept: readonly string[], sessionId: string | undefined): string {
+  const program = argv0 === '' || argv0.includes('/versions/') ? 'claude' : argv0
+  const resume = sessionId === undefined ? [] : ['--resume', sessionId]
+  return [program, ...kept, ...resume].map(shellQuote).join(' ')
+}
+
+// `hooks/argv.pl`이 낸 16진수 줄을 인자로 되돌린다.
+export function decodeArgs(stdout: string): string[] {
+  const decoder = new TextDecoder()
+  return stdout
+    .split('\n')
+    .slice(0, -1)
+    .map(line => decoder.decode(new Uint8Array((line.match(/../g) ?? []).map(byte => parseInt(byte, 16)))))
+}
 
 const manual = (command: string) => `직접 /exit 한 뒤 \`${command}\`로 다시 열어 주세요.`
 
@@ -95,7 +181,23 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
   const sessionId = await $.session.id()
   // 대화 기록이 없는 세션은 --resume으로 돌아올 수 없어 새로 연다.
   const hasTranscript = (await $.session.messages()).length > 0
-  const command = resumeCommand(hasTranscript ? sessionId : undefined)
+  const resumeId = hasTranscript ? sessionId : undefined
+
+  // 처음 실행할 때 붙인 옵션을 그대로 다시 붙인다. 이 claude와 그 셸을 확인하고, 실행 인자를 읽어 옵션만 고른다.
+  const probe = await $.process.run(['/bin/sh', '-c', PROBE], { timeoutMs: 5_000 }).catch(() => undefined)
+  const claude = probe?.exitCode === 0 ? parseProbe(probe.stdout) : undefined
+  const argv =
+    claude === undefined
+      ? undefined
+      : await $.process
+          .run(['perl', `${$.plugin.root}/hooks/argv.pl`, claude.pid], { timeoutMs: 5_000 })
+          .then(run => (run.exitCode === 0 ? decodeArgs(run.stdout) : undefined))
+          .catch(() => undefined)
+  const help = await $.process.run(['claude', '--help'], { timeoutMs: 10_000 }).catch(() => undefined)
+  const spec = parseHelp(help?.exitCode === 0 ? help.stdout : '')
+  // 도움말을 거의 못 읽었으면 어느 인자가 옵션 값인지 알 수 없다.
+  const isReadable = argv !== undefined && argv.length > 0 && spec.size >= 10
+  const command = isReadable ? resumeCommand(argv[0]!, keptArgs(argv.slice(1), spec), resumeId) : resumeCommand('claude', [], resumeId)
   if (!isSessionId(sessionId)) {
     return `세션 id를 알아보지 못했어요. ${manual(command)}`
   }
@@ -122,10 +224,11 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
     return `에이전트 ${busy.length}개가 작업 중이에요. 끝난 뒤 다시 하거나, 끊어도 되면 \`/relaunch now\`로 바로 다시 열어요.`
   }
 
-  const probe = await $.process.run(['/bin/sh', '-c', PROBE], { timeoutMs: 5_000 }).catch(() => undefined)
-  const claude = probe?.exitCode === 0 ? parseProbe(probe.stdout) : undefined
   if (claude === undefined) {
     return `이 claude를 띄운 셸을 확인하지 못했어요. ${manual(command)}`
+  }
+  if (!isReadable) {
+    return `처음 실행할 때 붙인 옵션을 읽지 못해 끝내지 않았어요. 직접 /exit 한 뒤 처음 옵션을 붙여 \`${command}\`처럼 다시 열어 주세요.`
   }
 
   const tmp = ((await $.env.get('TMPDIR')) ?? '/tmp').replace(/\/$/, '')
@@ -160,7 +263,7 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
       $.ui.toast('Claude Code를 끝내지 못했어요. 다시 시도하거나 직접 /exit 해 주세요')
     })
   })
-  return `Claude Code를 다시 열어요. 처음 실행할 때 붙인 옵션은 다시 붙지 않아요. 다시 열리지 않으면 \`${command}\`로 열어 주세요.`
+  return `Claude Code를 다시 열어요. 다시 열리지 않으면 \`${command}\`로 열어 주세요.`
 }
 
 let isChecking = false

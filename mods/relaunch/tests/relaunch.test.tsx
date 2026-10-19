@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { isNewer, isShell, isWritable, parseProbe, parseVersion, resumeCommand } from '../hooks/register'
+import { decodeArgs, isNewer, isShell, isWritable, keptArgs, parseHelp, parseProbe, parseVersion, resumeCommand, shellQuote } from '../hooks/register'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -60,21 +60,100 @@ describe('relaunch', () => {
     expect(isWritable('not json')).toBe(false)
   })
 
-  test('대화 기록이 없으면 --resume 없이 연다', () => {
-    expect(resumeCommand('abc')).toBe('claude --resume abc')
-    expect(resumeCommand(undefined)).toBe('claude')
+  test('도움말에서 옵션마다 값을 받는 방식을 읽는다', () => {
+    const spec = parseHelp(HELP)
+    expect(spec.get('--model')).toBe('required')
+    expect(spec.get('-r')).toBe('optional')
+    expect(spec.get('--resume')).toBe('optional')
+    expect(spec.get('--add-dir')).toBe('variadic')
+    expect(spec.get('--allowed-tools')).toBe('variadic')
+    expect(spec.get('--allowedTools')).toBe('variadic')
+    expect(spec.get('-c')).toBe('none')
+    expect(spec.get('--dangerously-skip-permissions')).toBe('none')
+    // Commands 절의 하위 명령은 옵션이 아니다.
+    expect(spec.has('mcp')).toBe(false)
+  })
+
+  test('처음 옵션은 값까지 남기고, 세션을 고르는 옵션과 처음 프롬프트는 뺀다', () => {
+    const spec = parseHelp(HELP)
+    expect(keptArgs(['--dangerously-skip-permissions', '--model', 'opus', '버그 고쳐줘'], spec)).toEqual([
+      '--dangerously-skip-permissions',
+      '--model',
+      'opus',
+    ])
+    expect(keptArgs(['-c', '--plugin-dir', '/a/b', '--plugin-dir', '/c', '--append-system-prompt', '두 단어'], spec)).toEqual([
+      '--plugin-dir',
+      '/a/b',
+      '--plugin-dir',
+      '/c',
+      '--append-system-prompt',
+      '두 단어',
+    ])
+    // --resume은 값이 있든 없든 값까지 뺀다. =로 붙은 값도 그대로 다룬다.
+    expect(keptArgs(['--resume', 'abc', '--permission-mode=plan'], spec)).toEqual(['--permission-mode=plan'])
+    expect(keptArgs(['-r', '--model', 'opus'], spec)).toEqual(['--model', 'opus'])
+    // 여러 값을 받는 옵션은 다음 옵션 전까지 받는다. -- 뒤는 모두 위치 인자다.
+    expect(keptArgs(['--add-dir', 'x', 'y', '--verbose', '--', '--model'], spec)).toEqual(['--add-dir', 'x', 'y', '--verbose'])
+    // 새 워크트리를 만드는 옵션은 다시 붙이지 않는다. 도움말에 없는 옵션은 그대로 둔다.
+    expect(keptArgs(['-w', 'feat', '--tmux', '--some-new-flag'], spec)).toEqual(['--some-new-flag'])
+  })
+
+  test('셸에 칠 수 있게 감싸고, 버전 폴더의 실행 파일은 claude로 바꾼다', () => {
+    expect(shellQuote('--model')).toBe('--model')
+    expect(shellQuote('두 단어')).toBe("'두 단어'")
+    expect(shellQuote("it's")).toBe("'it'\\''s'")
+    expect(shellQuote('')).toBe("''")
+    expect(resumeCommand('claude', ['--model', 'opus'], 'abc')).toBe('claude --model opus --resume abc')
+    expect(resumeCommand('/Users/me/.local/share/claude/versions/2.1.303', [], 'abc')).toBe('claude --resume abc')
+    expect(resumeCommand('/opt/bin/claude', [], undefined)).toBe('/opt/bin/claude')
+  })
+
+  test('perl이 낸 16진수 줄을 인자로 되돌린다', () => {
+    const hex = (text: string) => Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, '0')).join('')
+    expect(decodeArgs(['claude', '두 단어', 'a\nb', ''].map(hex).join('\n') + '\n')).toEqual(['claude', '두 단어', 'a\nb', ''])
   })
 })
+
+const HELP = [
+  'Usage: claude [options] [command] [prompt]',
+  '',
+  'Options:',
+  '  --add-dir <directories...>            Additional directories to allow tool',
+  '  --allowedTools, --allowed-tools <tools...>',
+  '                                        Comma or space-separated list',
+  '  --append-system-prompt <prompt>       Append a system prompt to the default',
+  '  -c, --continue                        Continue the most recent conversation in',
+  '  --dangerously-skip-permissions        Bypass all permission checks.',
+  '  -d, --debug [filter]                  Enable debug mode with optional category',
+  '  --model <model>                       Model for the current session. Provide',
+  '  --permission-mode <mode>              Permission mode to use for the session',
+  '  --plugin-dir <path>                   Load a plugin from a directory or .zip',
+  '  -r, --resume [value]                  Resume a conversation by session ID, or',
+  '  --tmux                                Create a tmux session for the worktree',
+  '  --verbose                             Override verbose mode setting from config',
+  '  -w, --worktree [name]                 Create a new git worktree for this session',
+  '',
+  'Commands:',
+  '  mcp                                   Configure and manage MCP servers',
+].join('\n')
 
 const SID = '6ad585d4-6674-43ee-8e41-fcfbf4f13554'
 const ORCA = { ORCA_TERMINAL_HANDLE: 'term_1', TMPDIR: '/tmp/' }
 const PROBE = '74754 74635 ttys012  claude\nMon Oct 19 11:28:28 2026\n74635 ttys012  -/bin/zsh\nMon Oct 19 9:28:27 2026\n'
 
-type World = { running: string; installed: string; agents: string[]; helpers: string[][] }
+type World = { running: string; installed: string; agents: string[]; helpers: string[][]; argv: string[] | null }
 
 // `world.running`이 돌고 있고, `claude --version`은 `world.installed`를 답한다. orca와 ps는 모든 확인을 통과하게 답한다.
 function session(on: On, env: Record<string, string>, world: Partial<World> = {}) {
-  const w: World = { running: '2.1.303', installed: '2.1.304', agents: [], helpers: [], ...world }
+  const w: World = {
+    running: '2.1.303',
+    installed: '2.1.304',
+    agents: [],
+    helpers: [],
+    argv: ['claude', '--dangerously-skip-permissions', '--model', 'opus', '버그 고쳐줘'],
+    ...world,
+  }
+  const hex = (text: string) => Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, '0')).join('')
   mock.env(on, env)
   mock.store(on)
   const clock = mock.clock(on)
@@ -87,8 +166,16 @@ function session(on: On, env: Record<string, string>, world: Partial<World> = {}
   on('agent.list', () => ({ value: w.agents.map((status, i) => ({ id: `a${i}`, status })) }) as never)
   on('process.run', (_$, e) => {
     const argv = (e as { argv: string[] }).argv
+    if (argv[0] === 'claude' && argv[1] === '--help') {
+      return ok(HELP)
+    }
     if (argv[0] === 'claude') {
       return ok(`${w.installed} (Claude Code)\n`)
+    }
+    if (argv[0] === 'perl') {
+      return w.argv === null
+        ? ({ value: { exitCode: 1, stdout: '', stderr: '' } } as never)
+        : ok(w.argv.map(hex).join('\n') + '\n')
     }
     if (argv[0] === 'orca' && argv[1] === '--version') {
       return ok('orca 1.0.0\n')
@@ -131,7 +218,7 @@ describe('relaunch 다시 열기', () => {
     await start($)
     const { text } = await $.command.run({ command: 'relaunch', args: '' } as never)
     expect(text).toContain('Orca 터미널 탭에서만')
-    expect(text).toContain(`claude --resume ${SID}`)
+    expect(text).toContain(`--resume ${SID}`)
     await clock.advance(2_000)
     expect(exits).toEqual([])
     expect(world.helpers).toEqual([])
@@ -151,12 +238,22 @@ describe('relaunch 다시 열기', () => {
         'Mon Oct 19 9:28:27 2026',
         'term_1',
         `/tmp/claude-relaunch.${SID}`,
-        `claude --resume ${SID}`,
+        `claude --dangerously-skip-permissions --model opus --resume ${SID}`,
       ],
     ])
     expect(exits).toEqual([])
     await clock.advance(600)
     expect(exits).toEqual(['exit'])
+  })
+
+  test('처음 옵션을 읽지 못하면 끝내지 않는다', async ($, on) => {
+    const { clock, exits, world } = session(on, ORCA, { argv: null })
+    await start($)
+    const { text } = await $.command.run({ command: 'relaunch', args: '' } as never)
+    expect(text).toContain('처음 실행할 때 붙인 옵션을 읽지 못해')
+    await clock.advance(2_000)
+    expect(exits).toEqual([])
+    expect(world.helpers).toEqual([])
   })
 
   test('작업 중인 에이전트가 있으면 묻고, now면 그래도 연다', async ($, on) => {
