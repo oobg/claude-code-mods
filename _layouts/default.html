@@ -54,6 +54,9 @@
       --code-bg: #fafafa;
       --code-inline: #f1f1f1;
       --accent: #5769f7;
+      --side-on: rgba(87, 105, 247, 0.1);
+      --side-on-text: #3f4fd6;
+      --side-hover: rgba(87, 105, 247, 0.05);
       --head-bg: rgba(255, 255, 255, 0.86);
       --hl-cmd: #6a4fd8;
       --hl-key: #0f6fa8;
@@ -76,6 +79,9 @@
         --code-bg: #0a0a0a;
         --code-inline: #161616;
         --accent: #b1b9f9;
+        --side-on: rgba(177, 185, 249, 0.14);
+        --side-on-text: #cdd2fc;
+        --side-hover: rgba(177, 185, 249, 0.06);
         --head-bg: rgba(5, 5, 5, 0.86);
         --hl-cmd: #c4b5fd;
         --hl-key: #7cc4f5;
@@ -98,6 +104,9 @@
       --code-bg: #0a0a0a;
       --code-inline: #161616;
       --accent: #b1b9f9;
+      --side-on: rgba(177, 185, 249, 0.14);
+      --side-on-text: #cdd2fc;
+      --side-hover: rgba(177, 185, 249, 0.06);
       --head-bg: rgba(5, 5, 5, 0.86);
       --hl-cmd: #c4b5fd;
       --hl-key: #7cc4f5;
@@ -166,8 +175,9 @@
     .group-title { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 0 10px; font-size: 13.5px; font-weight: 500; color: var(--text); }
     .group-title svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
     .group a { display: block; padding: 6px 10px; border-radius: 9px; color: var(--text-2); font-size: 14px; line-height: 1.45; text-decoration: none; }
-    .group a:hover { color: var(--text); }
-    .group a.on { color: var(--text); background: var(--hover); font-weight: 500; }
+    /* 선택한 항목은 로고의 보라빛 파랑(--accent)을 옅게 깐다. 회색 바탕은 검정 위에서 잘 보이지 않는다. */
+    .group a:hover { color: var(--text); background: var(--side-hover); }
+    .group a.on { color: var(--side-on-text); background: var(--side-on); font-weight: 500; }
     .aside { padding: 34px 24px 40px 12px; font-size: 13.5px; }
     .aside-title { margin: 0 0 10px; font-weight: 500; color: var(--text); }
     .aside ul { list-style: none; margin: 0; padding: 0; }
@@ -490,6 +500,50 @@
         links.forEach(function (a, i) { a.classList.toggle('on', i === current); });
       }
       window.addEventListener('scroll', markToc, { passive: true }); markToc();
+
+      // 첫 화면 사이드바의 소개, 설치 같은 항목을 스크롤 위치와 주소의 #에 맞춘다.
+      // 지금 읽는 절의 항목에 on을 주고 주소의 #도 그 절로 바꾼다. 소개를 누르면 맨 위로 가고 #을 지운다.
+      if (document.body.classList.contains('home')) {
+        var sideItems = Array.prototype.slice.call(document.querySelectorAll('#side .group:first-child a')).map(function (a) {
+          var id = decodeURIComponent(a.hash.slice(1));
+          return { a: a, id: id, el: id ? document.getElementById(id) : null };
+        });
+        // 소개를 눌러 맨 위로 올라가는 동안에는 지나가는 절로 바꾸지 않는다.
+        var isGoingTop = false;
+        var markSide = function () {
+          var current = sideItems[0];
+          if (isGoingTop && window.scrollY > 0) {
+            sideItems.forEach(function (item) { item.a.classList.toggle('on', item === current); });
+            return;
+          }
+          isGoingTop = false;
+          // 맨 아래까지 내리면 마지막 절은 위까지 올라오지 못하므로, 화면에 보이는 마지막 항목을 고른다.
+          var isBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+          var line = isBottom ? window.innerHeight : 110;
+          sideItems.forEach(function (item) { if (item.el && item.el.getBoundingClientRect().top < line) { current = item; } });
+          sideItems.forEach(function (item) { item.a.classList.toggle('on', item === current); });
+          // 주소의 #은 비었거나 사이드바 항목일 때만 바꾼다. 오른쪽 목차로 고른 세부 절(#요구-사항 등)은 그대로 둔다.
+          var hash = decodeURIComponent(location.hash.slice(1));
+          var isSideHash = hash === '' || sideItems.some(function (item) { return item.id === hash; });
+          if (isSideHash && hash !== current.id) {
+            history.replaceState(null, '', location.pathname + location.search + (current.id ? '#' + current.id : ''));
+          }
+        };
+        sideItems[0].a.addEventListener('click', function (e) {
+          e.preventDefault();
+          isGoingTop = true;
+          history.replaceState(null, '', location.pathname + location.search);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          markSide();
+        });
+        window.addEventListener('scroll', markSide, { passive: true });
+        // 올라가는 도중에 직접 스크롤하면 다시 스크롤 위치를 따른다.
+        ['wheel', 'touchstart', 'keydown'].forEach(function (type) {
+          window.addEventListener(type, function () { isGoingTop = false; }, { passive: true });
+        });
+        // #이 붙은 주소로 들어오면 브라우저가 그 절로 옮긴 뒤에 맞춘다. 먼저 맞추면 #을 지워 이동이 사라진다.
+        if (location.hash) { window.addEventListener('load', markSide); } else { markSide(); }
+      }
 
       // 오른쪽 동작: 맨 위로, 마크다운 복사.
       document.querySelector('.to-top').addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
