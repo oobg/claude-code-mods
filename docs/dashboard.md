@@ -46,20 +46,23 @@ Claude Code의 상태줄(`statusLine`) 대신 입력창 아래 안내 줄(`Promp
 
 ## 빠른 시작
 
-```
-/plugin install dashboard@oobg
-```
+1. 마켓플레이스를 등록하지 않았다면 [마켓플레이스에서 설치](../README.md#마켓플레이스에서-설치)를 보고 먼저 등록합니다.
+2. 모드를 설치하고, Claude Code를 다시 시작하거나 `/reload-plugins`를 실행합니다.
 
-설치 후 세션을 시작하면 입력창 아래에 기본 `gauge` 모양이 표시됩니다. 윗줄에는 게이지가, 아랫줄에는 모델과 위치 정보가 표시됩니다.
+   ```
+   /plugin install dashboard@oobg
+   ```
 
-```
-▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% (409K/1.0M)   5h ▰▱▱▱▱  6% (2h/13m)   7d ▰▱▱▱▱ 26% (3d/4h)   fable ▰▱▱▱▱ 12% (3d/4h)
-▌ 🧠 Opus xhigh · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
-```
+3. 세션을 시작하면 입력창 아래에 기본 `gauge` 모양이 표시됩니다. 윗줄에는 게이지가, 아랫줄에는 모델과 위치 정보가 표시됩니다.
 
-1. 메시지를 하나 보내면 모델 이름 옆에 effort가 표시됩니다.
-2. 모양을 바꾸려면 `/dashboard-style`을, 색을 바꾸려면 `/dashboard-theme`을 실행합니다.
-3. 상태줄과 대시보드에 같은 정보가 표시된다면 [statusLine과 함께 쓸 때](#statusline과-함께-쓸-때)를 참고합니다.
+   ```
+   ▌ ctx ▰▰▰▰▱▱▱▱▱▱ 41% (409K/1.0M)   5h ▰▱▱▱▱  6% (2h/13m)   7d ▰▱▱▱▱ 26% (3d/4h)   fable ▰▱▱▱▱ 12% (3d/4h)
+   ▌ 🧠 Opus xhigh · 📁 claude-code-mods ⎇ main · 🔑 you@example.com
+   ```
+
+4. 메시지를 하나 보내면 모델 이름 옆에 effort가 표시됩니다.
+5. 모양을 바꾸려면 `/dashboard-style`을, 색을 바꾸려면 `/dashboard-theme`을 실행합니다.
+6. 상태줄과 대시보드에 같은 정보가 표시된다면 [statusLine과 함께 쓸 때](#statusline과-함께-쓸-때)를 참고합니다.
 
 ## 사용법
 

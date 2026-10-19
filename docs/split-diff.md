@@ -46,17 +46,16 @@ split-diff는 터미널 폭이 넓을 때 이 결과를 왼쪽(원래 내용)과
 
 ## 빠른 시작
 
-마켓플레이스를 등록하지 않았다면 먼저 `/plugin marketplace add oobg/claude-code-mods`를 실행합니다. 그다음 모드를 설치합니다.
+1. 마켓플레이스를 등록하지 않았다면 [마켓플레이스에서 설치](../README.md#마켓플레이스에서-설치)를 보고 먼저 등록합니다.
+2. 모드를 설치하고, Claude Code를 다시 시작하거나 `/reload-plugins`를 실행합니다.
 
-```
-/plugin install split-diff@oobg
-```
+   ```
+   /plugin install split-diff@oobg
+   ```
 
-설치한 모드는 Claude Code를 다시 시작하거나 `/reload-plugins`를 실행하면 적용됩니다.
-
-1. 터미널 창을 120칸 이상으로 넓힙니다.
-2. Claude에게 파일 수정을 요청합니다.
-3. Edit 결과가 좌우로 나뉘어 표시됩니다.
+3. 터미널 창을 120칸 이상으로 넓힙니다.
+4. Claude에게 파일 수정을 요청합니다.
+5. Edit 결과가 좌우로 나뉘어 표시됩니다.
 
 ## 사용법
 
