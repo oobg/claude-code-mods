@@ -1,5 +1,7 @@
 # key-assist
 
+<img alt="macOS 전용" src="https://img.shields.io/badge/macOS%20%EC%A0%84%EC%9A%A9-A78BFA?style=flat-square">
+
 [← README로 돌아가기](../README.md)
 
 > Finder에서 복사한 파일을 붙여넣으면 파일 이름이 `@경로` 멘션으로 바뀝니다. Cmd+Z로 입력 내용을 되돌릴 수도 있습니다. macOS 전용입니다.

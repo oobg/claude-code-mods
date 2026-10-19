@@ -63,7 +63,7 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/paste-dark.gif">
 <img alt="key-assist: 붙여넣은 파일 이름이 @경로로 바뀐다" src="./docs/images/showcase/paste-light.gif" width="100%">
 </picture></a>
-<br><a href="./docs/key-assist.md"><b>key-assist</b></a><br>
+<br><a href="./docs/key-assist.md"><b>key-assist</b></a> <img alt="macOS 전용" src="https://img.shields.io/badge/macOS%20%EC%A0%84%EC%9A%A9-A78BFA?style=flat-square"><br>
 <sub>Finder에서 복사한 파일을 붙여넣으면 파일 이름이 <code>@경로</code>로 바뀝니다. Cmd+Z로 입력 내용을 되돌릴 수 있습니다</sub>
 </td>
 </tr>
@@ -83,7 +83,7 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/relaunch-dark.gif">
 <img alt="relaunch: Claude Code 업데이트 알림과 다시 열기 버튼" src="./docs/images/showcase/relaunch-light.gif" width="100%">
 </picture></a>
-<br><a href="./docs/relaunch.md"><b>relaunch</b></a><br>
+<br><a href="./docs/relaunch.md"><b>relaunch</b></a> <img alt="Orca 전용" src="https://img.shields.io/badge/Orca%20%EC%A0%84%EC%9A%A9-A78BFA?style=flat-square"><br>
 <sub>새 버전이 설치되면 입력창 위에 알립니다. Orca 탭에서 <code>다시 열기</code>를 누르면 Claude Code를 다시 시작하고 기존 대화를 이어서 엽니다</sub>
 </td>
 </tr>
@@ -224,12 +224,25 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 
 ## 문제 해결
 
-| 증상 | 해결 |
-| --- | --- |
-| 설치 목록에는 있는데 모드가 표시되지 않습니다 | Claude Code를 다시 시작합니다 |
-| next-prompts 제안이 나오지 않습니다 | 첫 턴이 끝나야 제안이 나옵니다. 답 본문이 120자 미만이면 제안하지 않습니다 |
-| Cmd+Z가 동작하지 않습니다 | Command 키 입력을 전달하는 터미널인지 확인합니다. 아니면 `ctrl+_`를 씁니다 |
-| Ctrl+Z를 눌렀더니 Claude Code가 멈췄습니다 | Ctrl+Z는 터미널에서 실행 중인 프로세스를 일시 중지합니다. `fg`를 입력하면 다시 실행됩니다 |
+<details>
+<summary>설치 목록에는 있는데 모드가 표시되지 않습니다</summary>
+<p>Claude Code를 다시 시작합니다.</p>
+</details>
+
+<details>
+<summary>next-prompts 제안이 나오지 않습니다</summary>
+<p>첫 턴이 끝나야 제안이 나옵니다. 답 본문이 120자 미만이면 제안하지 않습니다.</p>
+</details>
+
+<details>
+<summary>Cmd+Z가 동작하지 않습니다</summary>
+<p>Command 키 입력을 전달하는 터미널인지 확인합니다. 아니면 <code>ctrl+_</code>를 씁니다.</p>
+</details>
+
+<details>
+<summary>Ctrl+Z를 눌렀더니 Claude Code가 멈췄습니다</summary>
+<p>Ctrl+Z는 터미널에서 실행 중인 프로세스를 일시 중지합니다. <code>fg</code>를 입력하면 다시 실행됩니다.</p>
+</details>
 
 모드별 자세한 해결 방법은 각 상세 문서의 "문제 해결" 절에서 확인할 수 있습니다.
 
