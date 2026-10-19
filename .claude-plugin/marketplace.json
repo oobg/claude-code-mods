@@ -4,7 +4,7 @@
     "name": "oobg"
   },
   "metadata": {
-    "description": "Claude Code 입력창과 도구 결과에 기능을 추가하는 모드 모음입니다. 다음 제안, $번호 프리셋, 두 줄 대시보드, 파일 경로 붙여넣기와 Cmd+Z 되돌리기, 좌우 diff를 담았습니다"
+    "description": "Claude Code 입력창과 도구 결과에 기능을 추가하는 모드 모음입니다. 다음 제안, $번호 프리셋, 두 줄 대시보드, 파일 경로 붙여넣기와 Cmd+Z 되돌리기, 좌우 diff, 업데이트 후 다시 열기를 담았습니다"
   },
   "plugins": [
     {
@@ -75,6 +75,19 @@
         "diff",
         "side-by-side",
         "edit",
+        "claude-code"
+      ]
+    },
+    {
+      "name": "relaunch",
+      "source": "./mods/relaunch",
+      "description": "Claude Code 새 버전이 설치되면 입력창 위에 알립니다. /relaunch로 다시 시작해 지금 대화를 이어서 엽니다. 자동 다시 열기는 Orca 터미널 탭 전용",
+      "keywords": [
+        "relaunch",
+        "restart",
+        "update",
+        "resume",
+        "orca",
         "claude-code"
       ]
     }

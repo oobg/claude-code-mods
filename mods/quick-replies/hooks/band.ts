@@ -1,5 +1,5 @@
 // 입력창 위 띠(AbovePrompt)를 여러 모드가 나눠 쓰는 약속.
-// 이 파일은 quick-replies와 next-prompts에 똑같이 들어 있다. 고칠 때는 둘 다 고친다.
+// 이 파일은 quick-replies, next-prompts, relaunch에 똑같이 들어 있다. 고칠 때는 셋 다 고친다.
 //
 // 띠 자리에는 한 트리만 그려지므로, 각 모드는 아래 모양의 "띠 틀"을 주고받는다.
 //   Box(key=oobg-band, column)

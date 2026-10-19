@@ -304,7 +304,7 @@
 </head>
 <body class="{% if page.url == '/' %}home{% else %}page{% endif %}">
   {% assign base = site.baseurl %}
-  {% assign mods = "next-prompts,quick-replies,dashboard,key-assist,split-diff" | split: "," %}
+  {% assign mods = "next-prompts,quick-replies,dashboard,key-assist,split-diff,relaunch" | split: "," %}
   <header class="top">
     <a class="brand" href="{{ base }}/"><img src="{{ base }}/docs/images/logo.png" alt="">claude-code-mods</a>
     <div class="right">

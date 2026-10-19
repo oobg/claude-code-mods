@@ -23,7 +23,7 @@ defaults:
       seo_title: "claude-code-mods: Claude Code 모드 모음"
       og_title: "claude-code-mods"
       og_image: "/docs/images/og.png"
-      description: "Claude Code의 입력창과 도구 결과를 확장하는 플러그인 5개입니다. 다음 요청 제안, 문구 프리셋, 입력창 아래 대시보드, Finder 파일 붙여넣기, Cmd+Z 되돌리기, Edit와 Write의 diff를 좌우로 비교하는 기능을 제공합니다. 필요한 모드만 설치할 수 있습니다."
+      description: "Claude Code의 입력창과 도구 결과를 확장하는 플러그인 6개입니다. 다음 요청 제안, 문구 프리셋, 입력창 아래 대시보드, Finder 파일 붙여넣기, Cmd+Z 되돌리기, Edit와 Write의 diff를 좌우로 비교하는 기능, 업데이트 후 대화를 다시 여는 기능을 제공합니다. 필요한 모드만 설치할 수 있습니다."
   - scope:
       path: "docs/next-prompts.md"
     values:
@@ -54,3 +54,9 @@ defaults:
       og_image: "/docs/images/og-split-diff.png"
       seo_title: "split-diff: 좌우로 나눠 보는 diff"
       description: "Claude Code 플러그인 split-diff는 터미널 폭이 120칸 이상일 때 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어도 강조합니다."
+  - scope:
+      path: "docs/relaunch.md"
+    values:
+      og_image: "/docs/images/og-relaunch.png"
+      seo_title: "relaunch: 업데이트 후 대화 다시 열기"
+      description: "Claude Code 플러그인 relaunch는 새 버전이 설치되면 입력창 위에 알리고, Orca 터미널 탭에서 /relaunch를 실행하면 다시 시작해 지금 대화를 이어서 엽니다."

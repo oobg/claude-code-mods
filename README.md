@@ -8,9 +8,9 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
-  <a href="https://claude.com/claude-code"><img alt="Claude Code 2.1.299" src="https://img.shields.io/badge/Claude%20Code-2.1.299-111111?style=flat-square"></a>
+  <a href="https://claude.com/claude-code"><img alt="Claude Code 2.1.303" src="https://img.shields.io/badge/Claude%20Code-2.1.303-111111?style=flat-square"></a>
   <a href="#설치"><img alt="marketplace oobg" src="https://img.shields.io/badge/marketplace-oobg-111111?style=flat-square"></a>
-  <img alt="5 mods" src="https://img.shields.io/badge/mods-5-D97757?style=flat-square">
+  <img alt="6 mods" src="https://img.shields.io/badge/mods-6-D97757?style=flat-square">
   <a href="https://github.com/oobg/claude-code-mods/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/oobg/claude-code-mods?style=flat-square&color=111111"></a>
 </p>
 
@@ -26,7 +26,7 @@
   <a href="https://oobg.github.io/claude-code-mods/"><b>문서 사이트</b></a>
 </p>
 
-claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추가하는 모드 5개를 모은 저장소입니다. 입력창 위에서는 다음 요청을 제안하고 자주 쓰는 문구 프리셋을 표시하며, 입력창 아래에서는 세션 상태를 보여 줍니다. Finder에서 복사한 파일을 붙여넣으면 파일 이름을 `@경로` 멘션으로 바꾸고, Cmd+Z로 입력 내용을 되돌릴 수 있습니다. 넓은 터미널에서는 Edit와 Write 결과의 diff를 좌우로 비교할 수 있습니다. **모드는 필요한 것만 골라 설치하면 되고, 따로 설치할 프로그램은 없습니다.**
+claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추가하는 모드 6개를 모은 저장소입니다. 입력창 위에서는 다음 요청을 제안하고 자주 쓰는 문구 프리셋을 표시하며, 입력창 아래에서는 세션 상태를 보여 줍니다. Finder에서 복사한 파일을 붙여넣으면 파일 이름을 `@경로` 멘션으로 바꾸고, Cmd+Z로 입력 내용을 되돌릴 수 있습니다. 넓은 터미널에서는 Edit와 Write 결과의 diff를 좌우로 비교할 수 있습니다. Claude Code 새 버전이 설치되면 알려 주고, Orca 탭에서는 Claude Code를 다시 시작해 지금 대화를 이어서 엽니다. **모드는 필요한 것만 골라 설치하면 되고, 따로 설치할 프로그램은 없습니다.** relaunch의 자동 다시 열기에만 Orca가 필요합니다.
 
 ## 주요 기능
 
@@ -77,6 +77,16 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <sub>터미널 폭이 120칸 이상이면 Edit와 Write 결과의 diff에서 원래 내용은 왼쪽에, 바뀐 내용은 오른쪽에 표시합니다. 바뀐 단어는 더 밝은 색으로 강조합니다</sub>
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+<a href="./docs/relaunch.md"><picture>
+<source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/relaunch-dark.gif">
+<img alt="relaunch: 업데이트 알림의 다시 열기를 누르면 같은 탭에서 새 버전으로 같은 대화가 열린다" src="./docs/images/showcase/relaunch-light.gif" width="100%">
+</picture></a>
+<br><a href="./docs/relaunch.md"><b>relaunch</b></a><br>
+<sub>Claude Code 새 버전이 설치되면 입력창 위에 알립니다. Orca 탭에서 <code>다시 열기</code>를 누르거나 <code>/relaunch</code>를 실행하면 다시 시작해 지금 대화를 이어서 엽니다</sub>
+</td>
+</tr>
 </table>
 
 ## 특징
@@ -86,14 +96,16 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 - **상태 표시줄 대신 입력창 아래에 대시보드를 표시합니다.** 컨텍스트 사용량, 5시간과 7일 한도, Fable 한도, 모델, 브랜치를 두 줄로 확인할 수 있습니다.
 - **파일을 경로 멘션으로 붙여넣습니다.** Finder에서 복사한 파일을 붙여넣으면 파일 이름 대신 `@경로` 멘션이 입력됩니다.
 - **넓은 터미널에서는 diff를 좌우로 나눠 표시합니다.** 원래 줄과 바뀐 줄이 같은 높이에 나란히 표시됩니다.
+- **업데이트 후 기존 대화를 이어서 엽니다.** 새 버전이 설치되면 입력창 위에 알리고, Orca 탭에서 `/relaunch`를 실행하면 새 버전으로 다시 시작해 같은 대화를 엽니다.
 - **따로 설치할 프로그램이나 직접 고칠 설정 파일이 없습니다.** 마켓플레이스에서 필요한 모드만 골라 설치합니다.
 
 ## 설치
 
 ### 요구 사항
 
-- Claude Code 2.1.296 이상이 필요합니다. 2.1.296~2.1.299에서 테스트했습니다. 모드 기능은 아직 공개 초기 단계라 이후 버전에서는 동작이 달라질 수 있습니다.
+- Claude Code 2.1.296 이상이 필요합니다. 2.1.296~2.1.303에서 테스트했습니다. relaunch는 2.1.303에서만 테스트했습니다. 모드 기능은 아직 공개 초기 단계라 이후 버전에서는 동작이 달라질 수 있습니다.
 - key-assist는 macOS 전용입니다. Cmd+Z를 사용하려면 Command 키 입력을 Claude Code에 전달할 수 있는 터미널이 필요합니다. Orca, Ghostty, kitty, WezTerm처럼 Kitty 키보드 프로토콜을 지원하는 터미널이 해당합니다.
+- relaunch가 대화를 자동으로 다시 여는 기능은 Orca 터미널 탭에서만 동작합니다. 업데이트 알림은 어느 터미널에서나 표시됩니다.
 
 ### 마켓플레이스에서 설치
 
@@ -111,6 +123,7 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 /plugin install dashboard@oobg
 /plugin install key-assist@oobg
 /plugin install split-diff@oobg
+/plugin install relaunch@oobg
 ```
 
 설치한 모드는 Claude Code를 다시 시작하거나 `/reload-plugins`를 실행하면 적용됩니다. 설치 여부는 `/plugin` 화면에서 확인하거나 터미널에서 `claude plugin list`를 실행해 확인할 수 있습니다.
@@ -126,6 +139,7 @@ Claude Code를 시작하면 quick-replies의 기본 프리셋과 dashboard가 �
 | [dashboard](./docs/dashboard.md) | 모델, 컨텍스트, 사용 한도, 브랜치를 두 줄로 표시합니다 | 입력창 아래 |
 | [key-assist](./docs/key-assist.md) | 붙여넣은 파일 이름을 `@경로`로 바꾸고, Cmd+Z로 입력한 내용을 되돌립니다 | 입력창 |
 | [split-diff](./docs/split-diff.md) | 넓은 터미널에서 Edit와 Write 결과의 diff를 좌우로 나눠 표시합니다 | 도구 결과 |
+| [relaunch](./docs/relaunch.md) | 새 버전 설치를 알리고, Orca 탭에서 다시 시작해 지금 대화를 이어서 엽니다 | 입력창 위, `/relaunch` |
 
 ## $번호로 문구 입력하기
 
@@ -201,6 +215,7 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 /plugin uninstall dashboard@oobg
 /plugin uninstall key-assist@oobg
 /plugin uninstall split-diff@oobg
+/plugin uninstall relaunch@oobg
 ```
 
 > [!NOTE]
@@ -229,6 +244,7 @@ next-prompts와 quick-replies를 함께 쓰면 입력창 위에 표시되는 두
 | [dashboard](./docs/dashboard.md) | 항목 설명, 표시 형태와 색상, `/usage` 조회, 참고 사항 |
 | [key-assist](./docs/key-assist.md) | 파일 붙여넣기 동작, Cmd+Z 키 설정, 제한 사항 |
 | [split-diff](./docs/split-diff.md) | 좌우 표시 조건, 줄 맞추기, 단어 강조, 제한 사항 |
+| [relaunch](./docs/relaunch.md) | 업데이트 감지, 다시 열기 전 확인, 도우미 스크립트, 제한 사항 |
 
 ## 라이선스
 

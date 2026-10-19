@@ -1,0 +1,18 @@
+{
+  "name": "relaunch",
+  "version": "0.1.0",
+  "description": "Claude Code 새 버전이 설치되면 입력창 위에 알립니다. /relaunch로 다시 시작해 지금 대화를 이어서 엽니다. 자동 다시 열기는 Orca 터미널 탭 전용",
+  "license": "MIT",
+  "author": {
+    "name": "oobg"
+  },
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "relaunch",
+    "restart",
+    "update",
+    "resume",
+    "orca",
+    "claude-code"
+  ]
+}
