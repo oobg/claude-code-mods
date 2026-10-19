@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { buildPrompt, parseSuggestions } from '../hooks/suggest'
+import { buildPrompt, debugLine, parseSuggestions } from '../hooks/suggest'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -28,11 +28,51 @@ describe('next-prompts', () => {
     expect(parseSuggestions(reply)).toEqual(['방금 만든 테스트 돌려줘', '커밋해줘', 'README에 반영해줘'])
   })
 
+  test('번호 뒤에 숫자가 이어지거나 기호가 겹치면 문장의 일부로 두고, 머리줄은 버리고, JSON으로 온 답은 그 안의 문자열을 고른다', () => {
+    expect(parseSuggestions('0.9.0 릴리스 노트 써줘\n2) 3.5초 넘는 요청 찾아줘')).toEqual(['0.9.0 릴리스 노트 써줘', '3.5초 넘는 요청 찾아줘'])
+    expect(parseSuggestions('다음 요청 후보:\n--text-primary 정의 찾아줘\n- 커밋해줘')).toEqual(['--text-primary 정의 찾아줘', '커밋해줘'])
+    expect(parseSuggestions('{"suggestions":["테스트 돌려줘","커밋해줘"]}')).toEqual(['테스트 돌려줘', '커밋해줘'])
+    expect(parseSuggestions('```json\n["테스트 돌려줘"]\n```')).toEqual(['테스트 돌려줘'])
+    expect(parseSuggestions('[{"요청": "테스트 돌려줘"}, {"요청": "커밋해줘"}]')).toEqual(['테스트 돌려줘', '커밋해줘'])
+  })
+
+  test('정상 턴은 디버그 기록을 남기지 않고, 제안이 모자라거나 줄을 버리거나 한도에 닿은 턴만 이유와 함께 남긴다', () => {
+    expect(debugLine('테스트 돌려줘\n커밋해줘\nREADME에 반영해줘', 40)).toBeUndefined()
+
+    const short = JSON.parse(debugLine('다음 요청:\n테스트 돌려줘\n테스트 돌려줘', 30)!.replace(/^next-prompts: /, ''))
+    expect(short.accepted).toEqual(['테스트 돌려줘'])
+    expect(short.rejected).toEqual([
+      { text: '다음 요청:', reason: 'heading' },
+      { text: '테스트 돌려줘', reason: 'duplicate' },
+    ])
+    expect(short.atTokenLimit).toBe(false)
+
+    const full = JSON.parse(debugLine('테스트 돌려줘\n커밋해줘\nREADME에 반영해줘\n하나 더 해줘', 200)!.replace(/^next-prompts: /, ''))
+    expect(full.atTokenLimit).toBe(true)
+    expect(full.rejected).toEqual([{ text: '하나 더 해줘', reason: 'over-limit' }])
+
+    // 긴 원문은 앞뒤를 반씩 남긴다. 마지막 줄이 있었는지 봐야 하기 때문이다.
+    const long = JSON.parse(debugLine(`${'가'.repeat(900)}\n${'나'.repeat(900)}\n끝 줄 확인해줘`, 10)!.replace(/^next-prompts: /, ''))
+    expect(long.raw.length).toBeLessThanOrEqual(1001)
+    expect(long.raw.startsWith('가')).toBe(true)
+    expect(long.raw.endsWith('끝 줄 확인해줘')).toBe(true)
+    expect(long.rejected.map((r: { reason: string }) => r.reason)).toEqual(['too-long', 'too-long'])
+  })
+
   test('요청에는 사용자의 마지막 요청과 답의 끝부분만 들어간다', () => {
     const prompt = buildPrompt('버튼 꾸며줘', `${'가'.repeat(5000)}끝`)
     expect(prompt).toContain('버튼 꾸며줘')
     expect(prompt).toContain('끝')
     expect(prompt.length).toBeLessThan(5200)
+  })
+
+  test('앞선 요청은 최근 몇 개만 한 줄로 줄여 마지막 요청 앞에 넣는다', () => {
+    const earlier = ['첫 요청', '둘째 요청', '그건 하지 마\n대신 이걸 해줘', '넷째 요청', '다섯째 요청']
+    const prompt = buildPrompt('마지막 요청', '답', earlier)
+    expect(prompt).not.toContain('첫 요청')
+    expect(prompt).toContain('- 그건 하지 마 대신 이걸 해줘')
+    expect(prompt.indexOf('다섯째 요청')).toBeLessThan(prompt.indexOf('마지막 요청'))
+    expect(buildPrompt('마지막 요청', '답')).not.toContain('<앞선 사용자 요청>')
   })
 
   test('제안이 있으면 띠에 $번호 버튼으로 그리고, 번호를 고르면 입력창에 초안으로 넣고 띠를 닫는다', async ($, on) => {
@@ -291,7 +331,27 @@ describe('next-prompts', () => {
     expect((await submit('$1 하고 $5, a$1')).text).toBe('테스트 돌려줘 하고 $5, a$1')
   })
 
+  test('제안이 모자란 턴은 원인을 디버그 로그에만 남기고 대화에는 남기지 않는다', async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on)
+    const logs: { text: string; to?: string }[] = []
+    on('ui.log', (_$, e) => {
+      logs.push({ text: e.text, to: e.to })
+      return { value: undefined } as never
+    })
+    on('model.complete', () => ({
+      value: { isAnswered: true, text: '테스트 돌려줘\n다음 요청:', usage: { output_tokens: 20 } } as never,
+    }))
+    on('turn.complete', () => ({ text: '' }))
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
+    await clock.settle()
+    expect(logs).toHaveLength(1)
+    expect(logs[0]!.to).toBe('debug')
+    expect(logs[0]!.text).toContain('"reason":"heading"')
+  })
+
   test('서브에이전트의 턴이 끝날 때는 제안을 만들지 않는다', async ($, on) => {
+    const clock = mock.clock(on)
     let asked = 0
     on('model.complete', () => {
       asked += 1
@@ -299,8 +359,11 @@ describe('next-prompts', () => {
     })
     on('turn.complete', () => ({ text: '' }))
     await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't', agentId: 'sub-1' } as never)
+    await clock.settle()
     expect(asked).toBe(0)
     await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't2' } as never)
+    // 제안은 턴 마무리를 기다리지 않고 뒤에서 만든다.
+    await clock.settle()
     expect(asked).toBe(1)
   })
 })

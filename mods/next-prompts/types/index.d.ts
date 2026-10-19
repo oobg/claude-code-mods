@@ -10,6 +10,6 @@ export type Reveal = readonly number[]
 
 declare module 'claude-code' {
   interface PluginState {
-    'next-prompts': { suggestions: Suggestions; reveal: Reveal; lastPrompt: string }
+    'next-prompts': { suggestions: Suggestions; reveal: Reveal; lastPrompt: string; earlierPrompts: readonly string[] }
   }
 }

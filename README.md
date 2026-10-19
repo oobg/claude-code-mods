@@ -38,7 +38,7 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <img alt="next-prompts: 턴이 끝나면 다음에 보낼 만한 요청이 하나씩 나타난다" src="./docs/images/showcase/suggest-light.gif" width="100%">
 </picture></a>
 <br><a href="./docs/next-prompts.md"><b>next-prompts</b></a><br>
-<sub>턴이 끝나면 다음에 보낼 만한 요청을 2~3개 제안합니다. <code>$1</code>을 입력하고 스페이스를 누르거나 번호를 클릭하면 문구가 입력창에 들어가고, 문구를 클릭하면 바로 보냅니다</sub>
+<sub>턴이 끝나면 다음에 보낼 만한 요청을 최대 3개 제안합니다. <code>$1</code>을 입력하고 스페이스를 누르거나 번호를 클릭하면 문구가 입력창에 들어가고, 문구를 클릭하면 바로 보냅니다</sub>
 </td>
 <td width="50%" valign="top">
 <a href="./docs/quick-replies.md"><picture>
@@ -137,7 +137,7 @@ Claude Code를 시작하면 quick-replies의 기본 프리셋과 dashboard가 �
 
 | 모드 | 기능 | 위치 |
 | --- | --- | --- |
-| [next-prompts](./docs/next-prompts.md) | 턴이 끝나면 다음에 보낼 만한 요청을 2~3개 제안합니다 | 입력창 위 |
+| [next-prompts](./docs/next-prompts.md) | 턴이 끝나면 다음에 보낼 만한 요청을 최대 3개 제안합니다 | 입력창 위 |
 | [quick-replies](./docs/quick-replies.md) | 자주 쓰는 문구를 전역 프리셋이나 저장소별 프리셋에 저장합니다 | 입력창 위 |
 | [dashboard](./docs/dashboard.md) | 모델, 컨텍스트, 사용 한도, 브랜치를 두 줄로 표시합니다 | 입력창 아래 |
 | [key-assist](./docs/key-assist.md) | 붙여넣은 파일 이름을 `@경로`로 바꾸고, Cmd+Z로 입력한 내용을 되돌립니다 | 입력창 |

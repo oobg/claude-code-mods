@@ -29,7 +29,7 @@ defaults:
     values:
       og_image: "/docs/images/og-next-prompts.png"
       seo_title: "next-prompts: 다음 요청 제안"
-      description: "Claude Code 플러그인 next-prompts는 답변이 끝나면 다음 요청 2~3개를 입력창 위에 제안합니다. $1을 입력하거나 번호를 클릭해 입력창에 넣고, 문구를 클릭하면 바로 보냅니다."
+      description: "Claude Code 플러그인 next-prompts는 답변이 끝나면 다음 요청을 최대 3개 입력창 위에 제안합니다. $1을 입력하거나 번호를 클릭해 입력창에 넣고, 문구를 클릭하면 바로 보냅니다."
   - scope:
       path: "docs/quick-replies.md"
     values:

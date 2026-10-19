@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Reveal, Suggestions } from '../types'
 import { expandNumbers, numberLabel, typedNumber, withBandSection } from './band'
-import { MIN_ANSWER_CHARS, SYSTEM, buildPrompt, parseSuggestions } from './suggest'
+import { MAX_EARLIER_PROMPTS, MAX_REPLY_TOKENS, MIN_ANSWER_CHARS, SYSTEM, buildPrompt, debugLine, parseSuggestions } from './suggest'
 
 // 띠 안의 순서. quick-replies 프리셋 줄(20) 위에 온다.
 const ORDER = 10
@@ -13,6 +13,7 @@ const ACCENT = 'suggestion'
 const suggestions = atom({ plugin: 'next-prompts', key: 'suggestions' } as const, [] as Suggestions)
 const reveal = atom({ plugin: 'next-prompts', key: 'reveal' } as const, [] as Reveal)
 const lastPrompt = atom({ plugin: 'next-prompts', key: 'lastPrompt' } as const, '')
+const earlierPrompts = atom({ plugin: 'next-prompts', key: 'earlierPrompts' } as const, [] as readonly string[])
 
 // 제안이 나타나는 모양. 줄은 LINE_GAP_MS 간격으로 하나씩 나오고, 한 줄은 LINE_MS 안팎에 앞에서부터 흘려 쓴다.
 // 엔진은 띠를 초당 30번까지 다시 그리므로 상태는 FRAME_MS(33ms 이상)마다 한 번만 바꾼다.
@@ -55,6 +56,15 @@ async function animate($: EngineInterface, picked: Suggestions, mine: number): P
   }
 }
 
+// 새로 보낸 요청을 마지막 요청으로 두고, 그 전 요청은 앞선 요청 목록 끝에 붙인다.
+async function remember($: EngineInterface, text: string): Promise<void> {
+  const previous = await read($, lastPrompt)
+  if (previous !== '') {
+    await update($, earlierPrompts, list => [...list, previous].slice(-MAX_EARLIER_PROMPTS))
+  }
+  await update($, lastPrompt, () => text)
+}
+
 // 제안을 만드는 동안 사용자가 새 프롬프트를 보냈으면, 늦게 온 제안은 버린다.
 let generation = 0
 
@@ -63,12 +73,20 @@ async function suggest($: EngineInterface, answer: string, mine: number): Promis
     const reply = await $.model.complete({
       model: 'haiku',
       system: SYSTEM,
-      prompt: buildPrompt(await read($, lastPrompt), answer),
-      maxTokens: 200,
+      prompt: buildPrompt(await read($, lastPrompt), answer, await read($, earlierPrompts)),
+      maxTokens: MAX_REPLY_TOKENS,
       effort: 'low',
       timeoutMs: 20_000,
     })
-    if (!reply.isAnswered || mine !== generation) {
+    if (!reply.isAnswered) {
+      return
+    }
+    // 제안이 모자라거나 줄을 버린 턴은 원인을 가릴 수 있게 디버그 로그에만 남긴다. 대화와 모델에는 가지 않는다.
+    const line = debugLine(reply.text, reply.usage.output_tokens)
+    if (line !== undefined) {
+      $.ui.log(line, { to: 'debug' })
+    }
+    if (mine !== generation) {
       return
     }
     const picked = parseSuggestions(reply.text)
@@ -99,7 +117,7 @@ export const register: Register = on => {
       const result = await next(text === e.text ? e : { ...e, text })
       // 막혀서 들어가지 않은 글은 마지막 요청으로 남기지 않는다.
       if (result.drop === undefined) {
-        await update($, lastPrompt, () => result.text ?? text)
+        await remember($, result.text ?? text)
       }
       return result
     } finally {
@@ -185,7 +203,7 @@ export const register: Register = on => {
               onPress={async () => {
                 // 이 모드가 보낸 프롬프트에는 자기 prompt.submit 훅이 돌지 않으니, 그 일을 여기서 한다(clear가 generation을 올린다).
                 await clear()
-                await update($, lastPrompt, () => text)
+                await remember($, text)
                 await $.prompt.submit({ text, asUser: true })
               }}
             >
