@@ -69,11 +69,30 @@ Claude Code에는 입력을 되돌리는 기능(`chat:undo`)이 있지만 Cmd+Z�
 
 ## 문제 해결
 
-- **붙여넣은 파일 이름이 그대로 남습니다.** Finder에서 파일을 다시 복사해 복사한 파일 전부를 같은 순서로 붙여넣습니다. 파일이 아주 많으면 나눠서 붙여넣습니다.
-- **입력창에서는 그대로였는데 보낸 글만 바뀌었습니다.** 붙여넣고 바로 Enter를 누른 경우입니다. 정상 동작입니다.
-- **설치 알림이 뜨지 않았고 Cmd+Z가 되돌리지 않습니다.** `keybindings.json`에 `cmd+z`가 이미 있거나 파일이 JSON으로 읽히지 않는 경우입니다. 파일을 확인하고 [Cmd+Z로 되돌리기](#cmdz로-되돌리기)를 보고 직접 넣습니다.
-- **`"cmd+z": "chat:undo"`가 있는데 Cmd+Z가 되돌리지 않습니다.** 터미널이 Command 키를 전달하지 않습니다. Command 키를 넘겨 주는 터미널을 쓰거나 `ctrl+_`를 씁니다.
-- **지운 Cmd+Z 줄이 다시 생기지 않습니다.** 한 번만 넣기 때문입니다. 직접 넣습니다.
+<details>
+<summary>붙여넣은 파일 이름이 그대로 남습니다</summary>
+<p>Finder에서 파일을 다시 복사해 복사한 파일 전부를 같은 순서로 붙여넣습니다. 파일이 아주 많으면 나눠서 붙여넣습니다.</p>
+</details>
+
+<details>
+<summary>입력창에서는 그대로였는데 보낸 글만 바뀌었습니다</summary>
+<p>붙여넣고 바로 Enter를 누른 경우입니다. 정상 동작입니다.</p>
+</details>
+
+<details>
+<summary>설치 알림이 뜨지 않았고 Cmd+Z가 되돌리지 않습니다</summary>
+<p><code>keybindings.json</code>에 <code>cmd+z</code>가 이미 있거나 파일이 JSON으로 읽히지 않는 경우입니다. 파일을 확인하고 <a href="#cmdz로-되돌리기">Cmd+Z로 되돌리기</a>를 보고 직접 넣습니다.</p>
+</details>
+
+<details>
+<summary><code>"cmd+z": "chat:undo"</code>가 있는데 Cmd+Z가 되돌리지 않습니다</summary>
+<p>터미널이 Command 키를 전달하지 않습니다. Command 키를 넘겨 주는 터미널을 쓰거나 <code>ctrl+_</code>를 씁니다.</p>
+</details>
+
+<details>
+<summary>지운 Cmd+Z 줄이 다시 생기지 않습니다</summary>
+<p>한 번만 넣기 때문입니다. 직접 넣습니다.</p>
+</details>
 
 ## 변경 이력
 

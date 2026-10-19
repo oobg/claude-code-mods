@@ -49,9 +49,20 @@
 
 ## 문제 해결
 
-- **업데이트 알림이 보이지 않습니다.** 터미널에서 `claude --version`을 실행해 새 버전이 설치됐는지 확인합니다. 알림은 조금 늦게 나타날 수 있습니다.
-- **종료된 뒤 다시 열리지 않습니다.** 같은 탭에서 `claude --resume`을 실행하고 목록에서 기존 대화를 고릅니다.
-- **Orca 탭인데 자동으로 다시 열 수 없다고 나옵니다.** 셸에서 `claude`를 직접 실행했는지, `orca` 명령을 쓸 수 있는지 확인합니다. 안 되면 안내된 명령으로 직접 다시 엽니다.
+<details>
+<summary>업데이트 알림이 보이지 않습니다</summary>
+<p>터미널에서 <code>claude --version</code>을 실행해 새 버전이 설치됐는지 확인합니다. 알림은 조금 늦게 나타날 수 있습니다.</p>
+</details>
+
+<details>
+<summary>종료된 뒤 다시 열리지 않습니다</summary>
+<p>같은 탭에서 <code>claude --resume</code>을 실행하고 목록에서 기존 대화를 고릅니다.</p>
+</details>
+
+<details>
+<summary>Orca 탭인데 자동으로 다시 열 수 없다고 나옵니다</summary>
+<p>셸에서 <code>claude</code>를 직접 실행했는지, <code>orca</code> 명령을 쓸 수 있는지 확인합니다. 안 되면 안내된 명령으로 직접 다시 엽니다.</p>
+</details>
 
 ## 변경 이력
 

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="82" height="22" viewBox="0 0 82 22" role="img" aria-label="macOS 전용">
   <title>macOS 전용</title>
-  <rect width="82" height="22" rx="4" fill="#3A2E46"/>
-  <text x="8" y="15" fill="#936DB0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif" font-size="12.5" font-weight="500" textLength="66" lengthAdjust="spacingAndGlyphs">macOS 전용</text>
+  <rect width="82" height="22" rx="4" fill="#1F3448"/>
+  <text x="8" y="15" fill="#5B97D0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif" font-size="12.5" font-weight="500" textLength="66" lengthAdjust="spacingAndGlyphs">macOS 전용</text>
 </svg>

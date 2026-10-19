@@ -121,16 +121,45 @@ dashboard는 `statusLine` 설정을 바꾸지 않습니다. 상태줄을 켜 둔
 
 ## 문제 해결
 
-| 증상 | 해결 방법 |
-| --- | --- |
-| 상태줄과 대시보드에 같은 정보가 두 번 보입니다 | `~/.claude/settings.json`에서 `statusLine` 항목을 지웁니다 |
-| 모델 옆에 effort가 없습니다 | 메시지를 하나 보냅니다 |
-| `fable` 칸이 없거나 한도 값이 바뀌지 않습니다 | `/usage`를 직접 실행합니다 |
-| 브랜치가 보이지 않습니다 | git 저장소가 아니거나 브랜치를 체크아웃하지 않은 상태입니다 |
-| 이메일이 보이지 않습니다 | API 키로 로그인했다면 이메일이 없을 수 있습니다 |
-| 대시보드가 오른쪽으로 밀리거나 너무 왼쪽에 붙습니다 | 메시지를 하나 보냅니다 |
-| `/reload-plugins` 뒤 값이 갱신되지 않습니다 | 메시지를 하나 보냅니다 |
-| 예전에 고른 `calm` 대신 `gauge`가 보입니다 | 0.4.0부터 예전 선택값을 읽지 않습니다. `/dashboard-style calm`으로 다시 고릅니다 |
+<details>
+<summary>상태줄과 대시보드에 같은 정보가 두 번 보입니다</summary>
+<p><code>~/.claude/settings.json</code>에서 <code>statusLine</code> 항목을 지웁니다</p>
+</details>
+
+<details>
+<summary>모델 옆에 effort가 없습니다</summary>
+<p>메시지를 하나 보냅니다</p>
+</details>
+
+<details>
+<summary><code>fable</code> 칸이 없거나 한도 값이 바뀌지 않습니다</summary>
+<p><code>/usage</code>를 직접 실행합니다</p>
+</details>
+
+<details>
+<summary>브랜치가 보이지 않습니다</summary>
+<p>git 저장소가 아니거나 브랜치를 체크아웃하지 않은 상태입니다</p>
+</details>
+
+<details>
+<summary>이메일이 보이지 않습니다</summary>
+<p>API 키로 로그인했다면 이메일이 없을 수 있습니다</p>
+</details>
+
+<details>
+<summary>대시보드가 오른쪽으로 밀리거나 너무 왼쪽에 붙습니다</summary>
+<p>메시지를 하나 보냅니다</p>
+</details>
+
+<details>
+<summary><code>/reload-plugins</code> 뒤 값이 갱신되지 않습니다</summary>
+<p>메시지를 하나 보냅니다</p>
+</details>
+
+<details>
+<summary>예전에 고른 <code>calm</code> 대신 <code>gauge</code>가 보입니다</summary>
+<p>0.4.0부터 예전 선택값을 읽지 않습니다. <code>/dashboard-style calm</code>으로 다시 고릅니다</p>
+</details>
 
 ## 변경 이력
 

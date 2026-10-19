@@ -57,6 +57,10 @@
       --side-on: rgba(87, 105, 247, 0.1);
       --side-on-text: #3f4fd6;
       --side-hover: rgba(87, 105, 247, 0.05);
+      --tag-bg: #E8DEEE;
+      --tag-text: #7D5C9F;
+      --tag-blue-bg: #D3E5EF;
+      --tag-blue-text: #2F6F99;
       --head-bg: rgba(255, 255, 255, 0.86);
       --hl-cmd: #6a4fd8;
       --hl-key: #0f6fa8;
@@ -82,6 +86,10 @@
         --side-on: rgba(177, 185, 249, 0.14);
         --side-on-text: #cdd2fc;
         --side-hover: rgba(177, 185, 249, 0.06);
+        --tag-bg: #3A2E46;
+        --tag-text: #936DB0;
+        --tag-blue-bg: #1F3448;
+        --tag-blue-text: #5B97D0;
         --head-bg: rgba(5, 5, 5, 0.86);
         --hl-cmd: #c4b5fd;
         --hl-key: #7cc4f5;
@@ -107,6 +115,10 @@
       --side-on: rgba(177, 185, 249, 0.14);
       --side-on-text: #cdd2fc;
       --side-hover: rgba(177, 185, 249, 0.06);
+      --tag-bg: #3A2E46;
+      --tag-text: #936DB0;
+      --tag-blue-bg: #1F3448;
+      --tag-blue-text: #5B97D0;
       --head-bg: rgba(5, 5, 5, 0.86);
       --hl-cmd: #c4b5fd;
       --hl-key: #7cc4f5;
@@ -178,6 +190,9 @@
     /* 선택한 항목은 로고의 보라빛 파랑(--accent)을 옅게 깐다. 회색 바탕은 검정 위에서 잘 보이지 않는다. */
     .group a:hover { color: var(--text); background: var(--side-hover); }
     .group a.on { color: var(--side-on-text); background: var(--side-on); font-weight: 500; }
+    /* 플랫폼 전용 모드의 뱃지. 노션 태그 색으로, Orca는 보라, macOS는 파랑이다. */
+    .group a .tag { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: var(--tag-bg); color: var(--tag-text); font-size: 11.5px; font-weight: 500; line-height: 1.5; vertical-align: 1px; }
+    .group a .tag-blue { background: var(--tag-blue-bg); color: var(--tag-blue-text); }
     .aside { padding: 34px 24px 40px 12px; font-size: 13.5px; }
     .aside-title { margin: 0 0 10px; font-weight: 500; color: var(--text); }
     .aside ul { list-style: none; margin: 0; padding: 0; }
@@ -273,6 +288,8 @@
     .doc details summary::-webkit-details-marker { display: none; }
     .doc details summary::after { content: ""; flex: none; width: 7px; height: 7px; margin-left: auto; border-right: 1.6px solid var(--text-3); border-bottom: 1.6px solid var(--text-3); transform: rotate(45deg) translate(-2px, -2px); transition: transform 0.2s; }
     .doc details[open] summary::after { transform: rotate(225deg) translate(-2px, -2px); }
+    .doc details.is-closing summary::after { transform: rotate(45deg) translate(-2px, -2px); }
+    .doc details.is-closing { background: var(--bg); }
     .doc details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 10px; }
     .doc details > :not(summary) { margin: 0; padding: 0 16px 14px; color: var(--text-2); font-size: 14.5px; line-height: 1.65; }
     .doc details + p { margin-top: 18px; }
@@ -288,6 +305,9 @@
     .doc table.cards td:hover { border-color: var(--text-3); }
     .doc table.cards td img { display: block; width: 100%; }
     .doc table.cards td > a:first-child { display: block; border-bottom: 1px solid var(--line); }
+    /* 그림 두 장을 담은 카드(relaunch)는 한 칸을 좌우로 나눠 나란히 둔다. */
+    .doc table.cards td > a:first-child:has(picture + picture) { display: grid; grid-template-columns: 1fr 1fr; }
+    .doc table.cards td > a:first-child picture + picture img { border-left: 1px solid var(--line); }
     .doc table.cards td br:first-of-type { display: none; }
     .doc table.cards td > a + br + a { display: inline-block; margin: 14px 16px 2px; text-decoration: none; }
     .doc table.cards td b { font-size: 15.5px; font-weight: 600; color: var(--text); }
@@ -362,7 +382,7 @@
       </div>
       <div class="group">
         <p class="group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>모드</p>
-        {% for m in mods %}<a href="{{ base }}/docs/{{ m }}.html"{% if page.url contains m %} class="on"{% endif %}>{{ m }}</a>
+        {% for m in mods %}<a href="{{ base }}/docs/{{ m }}.html"{% if page.url contains m %} class="on"{% endif %}>{{ m }}{% if m == 'key-assist' %}<span class="tag tag-blue">macOS</span>{% elsif m == 'relaunch' %}<span class="tag">Orca</span>{% endif %}</a>
         {% endfor %}
       </div>
     </nav>
@@ -559,6 +579,38 @@
         });
         // #이 붙은 주소로 들어오면 브라우저가 그 절로 옮긴 뒤에 맞춘다. 먼저 맞추면 #을 지워 이동이 사라진다.
         if (location.hash) { window.addEventListener('load', markSide); } else { markSide(); }
+      }
+
+      // 접이식 문답을 부드럽게 열고 닫는다. 높이를 늘이고 줄이며 내용은 서서히 나타난다.
+      // 움직임 줄이기를 켰으면 브라우저 기본대로 바로 열고 닫는다.
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        doc.querySelectorAll('details').forEach(function (details) {
+          var summary = details.querySelector('summary');
+          if (!summary) { return; }
+          var running = null;
+          summary.addEventListener('click', function (e) {
+            e.preventDefault();
+            var isClosing = details.open && !details.classList.contains('is-closing');
+            var from = details.offsetHeight;
+            if (running) { running.cancel(); }
+            details.classList.toggle('is-closing', isClosing);
+            details.open = true;
+            var border = details.offsetHeight - details.clientHeight;
+            var to = isClosing ? summary.offsetHeight + border : details.offsetHeight;
+            details.style.overflow = 'hidden';
+            running = details.animate([{ height: from + 'px' }, { height: to + 'px' }], { duration: 240, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+            Array.prototype.forEach.call(details.children, function (child) {
+              if (child !== summary) {
+                child.animate(isClosing ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' });
+              }
+            });
+            running.onfinish = function () {
+              running = null;
+              details.style.overflow = '';
+              if (isClosing) { details.open = false; details.classList.remove('is-closing'); }
+            };
+          });
+        });
       }
 
       // 오른쪽 동작: 맨 위로, 마크다운 복사.

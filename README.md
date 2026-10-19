@@ -81,10 +81,13 @@ claude-code-mods는 Claude Code의 입력창과 도구 결과에 기능을 추�
 <td colspan="2" valign="top">
 <a href="./docs/relaunch.md"><picture>
 <source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/relaunch-dark.gif">
-<img alt="relaunch: Claude Code 업데이트 알림과 다시 열기 버튼" src="./docs/images/showcase/relaunch-light.gif" width="100%">
+<img alt="relaunch: 업데이트 알림의 다시 열기를 누르면 같은 탭에서 새 버전으로 같은 대화가 열린다" src="./docs/images/showcase/relaunch-light.gif" width="49%">
+</picture> <picture>
+<source media="(prefers-color-scheme: dark)" srcset="./docs/images/showcase/relaunch-type-dark.gif">
+<img alt="relaunch: 입력창에 /relaunch를 치고 Enter를 누르면 같은 탭에서 새 버전으로 같은 대화가 열린다" src="./docs/images/showcase/relaunch-type-light.gif" width="49%">
 </picture></a>
 <br><a href="./docs/relaunch.md"><b>relaunch</b></a> <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/badges/orca-dark.svg"><img alt="Orca 전용" src="./docs/images/badges/orca-light.svg" height="22"></picture><br>
-<sub>새 버전이 설치되면 입력창 위에 알립니다. Orca 탭에서 <code>다시 열기</code>를 누르면 Claude Code를 다시 시작하고 기존 대화를 이어서 엽니다</sub>
+<sub>새 버전이 설치되면 입력창 위에 알립니다. Orca 탭에서 <code>다시 열기</code>를 누르거나(왼쪽) <code>/relaunch</code>를 입력하면(오른쪽) Claude Code를 다시 시작하고 기존 대화를 이어서 엽니다</sub>
 </td>
 </tr>
 </table>
