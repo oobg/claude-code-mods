@@ -6,7 +6,11 @@ export const MIN_COLUMNS = 120
 // 결과 블록 본문의 들여쓰기. 엔진의 diff처럼 `⎿` 표시 아래로 맞춘다.
 const INDENT = 4
 
+// Bash 결과에서 파일 하나에 그리는 최대 줄 수. 스크립트가 큰 파일을 만들어도 화면을 덮지 않게 나머지는 줄여 표시한다.
+export const BASH_MAX_ROWS = 40
+
 type Hunk = { oldStart: number; oldLines: number; newStart: number; newLines: number; lines: string[] }
+type FilePatch = { filePath: string; hunks: Hunk[]; kind: 'update' | 'create' | 'delete' }
 type Side = { no: number; text: string; kind: 'ctx' | 'del' | 'add' }
 export type Row = { kind: 'line'; left?: Side; right?: Side; spans?: { del: [number, number][]; add: [number, number][] } } | { kind: 'gap' }
 
@@ -156,7 +160,7 @@ function relative(path: string, cwd: string): string {
 }
 
 // Edit 결과, 그리고 기존 파일을 덮어쓴 Write 결과만 다룬다.
-function patchOf(tool: string, output: unknown): { filePath: string; hunks: Hunk[] } | undefined {
+function patchOf(tool: string, output: unknown): FilePatch | undefined {
   if (tool !== 'Edit' && tool !== 'Write') {
     return undefined
   }
@@ -167,32 +171,137 @@ function patchOf(tool: string, output: unknown): { filePath: string; hunks: Hunk
   if (tool === 'Write' && out.type !== 'update') {
     return undefined
   }
-  return { filePath: out.filePath, hunks: out.structuredPatch as Hunk[] }
+  return { filePath: out.filePath, hunks: out.structuredPatch as Hunk[], kind: 'update' }
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+// 구간 하나가 모양도 맞고, 머리의 줄 수가 실제 줄과도 맞는지 본다. 줄 번호가 어긋난 diff는 그리지 않는다.
+function isHunk(value: unknown): value is Hunk {
+  const h = value as Partial<Record<keyof Hunk, unknown>> | null
+  if (!h || typeof h !== 'object' || !isCount(h.oldStart) || !isCount(h.oldLines) || !isCount(h.newStart) || !isCount(h.newLines) || !Array.isArray(h.lines)) {
+    return false
+  }
+  let old = 0
+  let now = 0
+  for (const line of h.lines) {
+    if (typeof line !== 'string') return false
+    const mark = line[0]
+    if (mark === ' ') {
+      old++
+      now++
+    } else if (mark === '-') old++
+    else if (mark === '+') now++
+    else if (mark !== '\\') return false
+  }
+  return old === h.oldLines && now === h.newLines
+}
+
+// Bash 명령이 바꾼 파일들의 diff(`bashEditDiff`)를 읽는다. 엔진 내부 필드라 모양이 바뀔 수 있으므로,
+// 하나라도 예상과 다르거나 엔진이 diff를 다 갖지 못했다고 표시하면 통째로 엔진에 맡긴다.
+export function bashPatches(output: unknown): { files: FilePatch[]; moreFiles: number } | undefined {
+  const diff = (output as { bashEditDiff?: unknown } | null)?.bashEditDiff as
+    | { files?: unknown; moreFiles?: unknown; unavailable?: unknown; skipped?: unknown; shared?: unknown }
+    | null
+    | undefined
+  if (!diff || typeof diff !== 'object' || diff.unavailable || diff.skipped || diff.shared) {
+    return undefined
+  }
+  if (!Array.isArray(diff.files) || diff.files.length === 0 || !isCount(diff.moreFiles)) {
+    return undefined
+  }
+  const files: FilePatch[] = []
+  for (const file of diff.files as unknown[]) {
+    const f = file as { filePath?: unknown; hunks?: unknown; created?: unknown; deleted?: unknown } | null
+    if (!f || typeof f.filePath !== 'string' || f.filePath === '' || !Array.isArray(f.hunks) || !f.hunks.every(isHunk)) {
+      return undefined
+    }
+    if ((f.created !== undefined && f.created !== true) || (f.deleted !== undefined && f.deleted !== true) || (f.created && f.deleted)) {
+      return undefined
+    }
+    files.push({ filePath: f.filePath, hunks: f.hunks, kind: f.created ? 'create' : f.deleted ? 'delete' : 'update' })
+  }
+  return { files, moreFiles: diff.moreFiles }
 }
 
 export const register: Register = on => {
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
-    if (e.surface !== 'terminal') {
-      return next(e)
-    }
     const columns = e.viewport?.columns
-    const patch = e.props.isErrored ? undefined : patchOf(e.props.tool, e.props.output)
-    if (patch === undefined || columns === undefined || columns < MIN_COLUMNS) {
+    if (e.surface !== 'terminal' || e.props.isErrored || columns === undefined || columns < MIN_COLUMNS) {
       return next(e)
     }
-    return draw($, e, patch, columns)
+    const patch = patchOf(e.props.tool, e.props.output)
+    if (patch !== undefined) {
+      return drawEdit($, e, patch, columns)
+    }
+    const bash = e.props.tool === 'Bash' ? bashPatches(e.props.output) : undefined
+    if (bash !== undefined) {
+      // 명령 출력은 엔진이 그리게 하고, 엔진의 diff만 빼서 그 자리에 좌우 diff를 붙인다.
+      const { bashEditDiff: _, ...rest } = e.props.output as Record<string, unknown>
+      const above = await next({ ...e, props: { ...e.props, output: rest } })
+      return drawBash($, e, above, bash, columns)
+    }
+    return next(e)
   })
 }
 
-async function draw($: EngineInterface, e: RenderInputOf<'ToolResult', 'terminal'>, patch: { filePath: string; hunks: Hunk[] }, columns: number) {
-  const { Box, Text, Code } = $.ui.resolve(e)
-  const rows = toRows(patch.hunks)
+type Input = RenderInputOf<'ToolResult', 'terminal'>
+
+async function drawEdit($: EngineInterface, e: Input, patch: FilePatch, columns: number) {
+  const { Box } = $.ui.resolve(e)
+  const cwd = await $.session.cwd()
+  return (
+    <Box flexDirection="column">
+      {heading($, e, patch, cwd, true)}
+      {sideBySide($, e, patch, columns, Infinity)}
+    </Box>
+  )
+}
+
+async function drawBash($: EngineInterface, e: Input, above: unknown, bash: { files: FilePatch[]; moreFiles: number }, columns: number) {
+  const { Box, Text } = $.ui.resolve(e)
+  const cwd = await $.session.cwd()
+  return (
+    <Box flexDirection="column">
+      {above as never}
+      {bash.files.map((patch, i) => (
+        <Box key={`file:${i}`} flexDirection="column">
+          {heading($, e, patch, cwd, false)}
+          {sideBySide($, e, patch, columns, BASH_MAX_ROWS)}
+        </Box>
+      ))}
+      {bash.moreFiles > 0 ? (
+        <Text dimColor>{`${' '.repeat(INDENT)}… ${bash.moreFiles} more ${bash.moreFiles === 1 ? 'file' : 'files'}`}</Text>
+      ) : null}
+    </Box>
+  )
+}
+
+function heading($: EngineInterface, e: Input, patch: FilePatch, cwd: string, arrow: boolean) {
+  const { Text } = $.ui.resolve(e)
   const { added, removed } = counts(patch.hunks)
-  const path = relative(patch.filePath, await $.session.cwd())
+  const verb = patch.kind === 'create' ? 'Created' : patch.kind === 'delete' ? 'Deleted' : 'Updated'
+  return (
+    <Text>
+      <Text dimColor>{arrow ? '  ⎿ ' : ' '.repeat(INDENT)}</Text>
+      {verb} <Text bold>{relative(patch.filePath, cwd)}</Text> <Text dimColor>{`(+${added} -${removed})`}</Text>
+    </Text>
+  )
+}
+
+// 새로 만든 파일은 왼쪽이, 지운 파일은 오른쪽이 빈 채로 그려진다. limit 줄을 넘으면 나머지는 줄 수만 적는다.
+function sideBySide($: EngineInterface, e: Input, patch: FilePatch, columns: number, limit: number) {
+  const { Box, Text, Code } = $.ui.resolve(e)
+  const all = toRows(patch.hunks)
+  const rows = all.slice(0, limit)
+  while (rows[rows.length - 1]?.kind === 'gap') rows.pop()
+  const hidden = all.slice(rows.length).filter(row => row.kind === 'line').length
 
   // 들여쓰기와 가운데 구분선(" │ ") 몫을 빼고 반씩 나눈다.
   const half = Math.floor((columns - INDENT - 3) / 2)
-  const lastNo = Math.max(...patch.hunks.map(h => Math.max(h.oldStart + h.oldLines, h.newStart + h.newLines)))
+  const lastNo = Math.max(1, ...patch.hunks.map(h => Math.max(h.oldStart + h.oldLines, h.newStart + h.newLines)))
   const gutter = String(lastNo).length
 
   // 칸마다 한 줄짜리 diff 구간을 만들어 엔진의 Code(diff 형식)에 맡긴다.
@@ -233,12 +342,7 @@ async function draw($: EngineInterface, e: RenderInputOf<'ToolResult', 'terminal
   }
 
   return (
-    <Box flexDirection="column">
-      <Text>
-        <Text dimColor>{'  ⎿ '}</Text>
-        Updated <Text bold>{path}</Text> <Text dimColor>{`(+${added} -${removed})`}</Text>
-      </Text>
-      <Box flexDirection="column" paddingLeft={INDENT}>
+    <Box flexDirection="column" paddingLeft={INDENT}>
       {rows.map((row, i) =>
         row.kind === 'gap' ? (
           <Text key={`gap:${i}`} dimColor>
@@ -252,7 +356,11 @@ async function draw($: EngineInterface, e: RenderInputOf<'ToolResult', 'terminal
           </Box>
         ),
       )}
-      </Box>
+      {hidden > 0 ? (
+        <Text dimColor>
+          {' '.repeat(gutter)}… {hidden} more {hidden === 1 ? 'line' : 'lines'}
+        </Text>
+      ) : null}
     </Box>
   )
 }
