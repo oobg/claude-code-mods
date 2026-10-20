@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Deleted, EditInput, Mode, Reply, Scope } from '../types'
 import { exclusiveBand, expandNumbers, expandRanges, numberLabel, rangeText, typedAfterDollar, typedNumber, typedRange, withBandSection } from './band'
-import { TITLE_SYSTEM, needsTitle, parseTitle, shortTitle, titlePrompt } from './title'
+import { MAX_TITLE_TOKENS, TITLE_SYSTEM, needsTitle, parseTitle, shortTitle, titlePrompt } from './title'
 
 export const DEFAULT_REPLIES: readonly string[] = ['지금 진행상황', '맞아 그렇게 진행해']
 
@@ -173,7 +173,7 @@ async function autoTitle($: EngineInterface, reply: Reply): Promise<void> {
       model: 'haiku',
       system: TITLE_SYSTEM,
       prompt: titlePrompt(reply.text),
-      maxTokens: 40,
+      maxTokens: MAX_TITLE_TOKENS,
       effort: 'low',
       timeoutMs: 20_000,
     })

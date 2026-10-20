@@ -2,6 +2,8 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
+import { TITLE_SYSTEM, parseTitle, titlePrompt } from '../hooks/title'
+
 const BAND = {
   component: 'AbovePrompt',
   props: {
@@ -163,9 +165,9 @@ describe('quick-replies', () => {
 
     await ui.press({ key: 'compact' })
     expect((await ui.find({ key: 'send:g1' }))?.props?.label).toBe('진행상황')
-    // 제목이 없으면 문구를 줄여 보인다.
+    // 제목이 없으면 문구를 줄여 보인다. 한글은 두 칸, 영문과 공백은 한 칸으로 세어 24칸까지 둔다.
     expect((await ui.find({ key: 'send:g2' }))?.props?.label).toBe('맞아 그렇게 진행해')
-    expect((await ui.find({ key: 'send:g3' }))?.props?.label).toBe('/ux-writing…')
+    expect((await ui.find({ key: 'send:g3' }))?.props?.label).toBe('/ux-writing README 문구…')
     expect(await ui.find({ key: 'group:global' })).toBeDefined()
     expect(await ui.find({ key: 'group:project' })).toBeDefined()
     expect(await ui.findAll({ type: 'Text', text: '|' })).toHaveLength(2)
@@ -210,10 +212,38 @@ describe('quick-replies', () => {
     await ui.unmount()
   })
 
+  test('제목은 답의 JSON 배열에서 첫 문자열만 읽고, 머리말이나 요청을 되읊은 말은 제목으로 쓰지 않는다', () => {
+    expect(TITLE_SYSTEM).toContain('JSON 문자열 배열')
+    expect(titlePrompt('문구').endsWith('제목(JSON 문자열 배열):')).toBe(true)
+    expect(parseTitle('["테스트 추가"]')).toBe('테스트 추가')
+    expect(parseTitle('문구에 짧은 제목을 붙이면 다음과 같습니다.\n["테스트 추가"]')).toBe('테스트 추가')
+    expect(parseTitle('```json\n["테스트 추가"]\n```\n12자 이내로 지었습니다.')).toBe('테스트 추가')
+    expect(parseTitle('{"title": ["테스트 추가"]}')).toBe('테스트 추가')
+    expect(parseTitle('[{"제목": "테스트 추가"}]')).toBe('테스트 추가')
+    expect(parseTitle('[1] 지었습니다\n["테스트 추가"]')).toBe('테스트 추가')
+    // 길이 한도에서 잘린 배열도 닫힌 문자열은 건진다. 하나도 없으면 빈 제목이다.
+    expect(parseTitle('["테스트 추가", "다')).toBe('테스트 추가')
+    expect(parseTitle('["테스트 추')).toBe('')
+    expect(parseTitle('[]')).toBe('')
+    // 머리말을 배열 안에 넣었으면 제목으로 쓰지 않는다.
+    expect(parseTitle('["자주 보내는 요청 문구에 짧은 제목을 붙인다"]')).toBe('')
+    // 화면 폭으로 24칸(한글 12자)을 넘으면 자른다. 영어는 24자까지 둔다. 배열이 없으면 예전처럼 첫 줄을 쓴다.
+    expect(parseTitle('["방금 바꾼 코드의 테스트를 돌리기"]')).toBe('방금 바꾼 코드의 테스트…')
+    expect(parseTitle('["가나다라마바사아자차카타파"]')).toBe('가나다라마바사아자차카타…')
+    expect(parseTitle('["Run tests and fix them"]')).toBe('Run tests and fix them')
+    expect(parseTitle('["Summarize the PR and draft notes"]')).toBe('Summarize the PR and dra…')
+    expect(parseTitle('제목: 테스트 추가')).toBe('테스트 추가')
+    // 흔한 제목은 되읊은 말로 잘못 거르지 않는다.
+    for (const title of ['테스트 추가', '커밋 메시지 작성', 'PR 설명 쓰기', '슬래시 명령 실행', '요청 문구 다듬기', '진행 상황 요약']) {
+      expect(parseTitle(JSON.stringify([title]))).toBe(title)
+    }
+  })
+
   test('긴 문구에는 모델이 제목을 짓고, 문구를 고치면 다시 짓는다. 사람이 단 제목은 그대로 둔다', async ($, on) => {
     inRepo(on, '/repo/one', {}, true, {
-      '방금 바꾼 코드에 테스트를 추가해줘': '테스트 추가',
-      '방금 바꾼 코드의 테스트를 돌려줘': '테스트 실행',
+      // 모델이 배열 앞에 머리말을 붙여도 배열 안의 제목만 쓴다.
+      '방금 바꾼 코드에 테스트를 추가해줘': '문구에 제목을 붙이면 다음과 같습니다.\n["테스트 추가"]',
+      '방금 바꾼 코드의 테스트를 돌려줘': '["테스트 실행"]',
     })
     const { filled, enter } = composer($, on)
     const ui = await $.ui.mount({ plugin: 'quick-replies', surface: 'terminal', ...BAND })

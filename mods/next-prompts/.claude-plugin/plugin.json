@@ -1,6 +1,6 @@
 {
   "name": "next-prompts",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "턴이 끝나면 다음에 보낼 만한 프롬프트를 최대 3개 입력창 위에 제안합니다. 입력창에 $1처럼 입력하면 해당 문구로 바뀝니다. 번호를 클릭하면 초안으로 넣고, 문구를 클릭하면 바로 보냅니다",
   "author": {
     "name": "oobg"
@@ -15,5 +15,18 @@
     "haiku",
     "productivity",
     "claude-code"
-  ]
+  ],
+  "userConfig": {
+    "model": {
+      "type": "string",
+      "title": "제안 모델",
+      "description": "다음 제안을 만드는 모델입니다. sonnet과 opus는 haiku보다 턴마다 계정 사용량이 더 듭니다.",
+      "default": "haiku",
+      "options": [
+        "haiku",
+        "sonnet",
+        "opus"
+      ]
+    }
+  }
 }

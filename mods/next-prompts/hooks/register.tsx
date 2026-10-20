@@ -68,10 +68,10 @@ async function remember($: EngineInterface, text: string): Promise<void> {
 // 제안을 만드는 동안 사용자가 새 프롬프트를 보냈으면, 늦게 온 제안은 버린다.
 let generation = 0
 
-async function suggest($: EngineInterface, answer: string, mine: number): Promise<void> {
+async function suggest($: EngineInterface, model: string, answer: string, mine: number): Promise<void> {
   try {
     const reply = await $.model.complete({
-      model: 'haiku',
+      model,
       system: SYSTEM,
       prompt: buildPrompt(await read($, lastPrompt), answer, await read($, earlierPrompts)),
       maxTokens: MAX_REPLY_TOKENS,
@@ -99,7 +99,12 @@ async function suggest($: EngineInterface, answer: string, mine: number): Promis
   }
 }
 
-export const register: Register = on => {
+// 제안을 만드는 모델. /config에서 고른다(userConfig.model). 제안은 턴마다 만들므로 기본은 가장 싼 모델이다.
+export const DEFAULT_MODEL = 'haiku'
+
+export const register: Register = (on, options) => {
+  const model = typeof options.model === 'string' ? options.model : DEFAULT_MODEL
+
   // 다시 불러오면 돌던 애니메이션은 사라지니, 남은 진행 정도를 지워 제안을 다 보이게 한다.
   on('session.start', async ($, e, next) => {
     await update($, reveal, () => [])
@@ -154,7 +159,7 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined && e.reason === 'answer' && !e.isAborted && e.answer.length >= MIN_ANSWER_CHARS) {
-      void suggest($, e.answer, generation)
+      void suggest($, model, e.answer, generation)
     }
     return result
   })

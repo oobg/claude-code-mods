@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { buildPrompt, debugLine, parseSuggestions } from '../hooks/suggest'
+import { SYSTEM, buildPrompt, columns, debugLine, jsonStrings, parseReply, parseSuggestions } from '../hooks/suggest'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -36,6 +36,111 @@ describe('next-prompts', () => {
     expect(parseSuggestions('[{"요청": "테스트 돌려줘"}, {"요청": "커밋해줘"}]')).toEqual(['테스트 돌려줘', '커밋해줘'])
   })
 
+  test('JSON 배열 앞뒤에 머리말이나 맺음말이 붙어도 배열 안의 요청만 고른다', () => {
+    const three = '["통제 섹션 부재 쟁점 정리해줘", "영상 테두리 문제 재현해줘", "검토 결과 표로 만들어줘"]'
+    const picked = ['통제 섹션 부재 쟁점 정리해줘', '영상 테두리 문제 재현해줘', '검토 결과 표로 만들어줘']
+    // 실제로 띠에 $1로 새어 나왔던 머리말.
+    expect(parseSuggestions(`사용자가 다음에 입력할 만한 요청 3개를 규칙에 따라 고르면 다음과 같습니다.\n${three}`)).toEqual(picked)
+    expect(parseSuggestions(`다음과 같습니다.\n\n\`\`\`json\n${three}\n\`\`\`\n\n이 중에서 골라 보세요.`)).toEqual(picked)
+    expect(parseSuggestions(`요청은 아래와 같아요. ${three} 끝.`)).toEqual(picked)
+    // 머리말에 대괄호가 있거나 맺음말에 또 다른 대괄호가 있어도 요청 배열을 고른다.
+    expect(parseSuggestions(`[참고] 규칙대로 골랐습니다\n${three}\n[1] 근거는 답 끝부분`)).toEqual(picked)
+    // 머리말의 "[1]"처럼 숫자만 든 대괄호는 답이 아니다.
+    expect(parseSuggestions(`[1] 규칙대로 골랐습니다\n${three}`)).toEqual(picked)
+    // 문자열 안의 ]는 배열의 끝이 아니다.
+    expect(parseSuggestions('설명\n["배열 a[0] 확인해줘", "커밋해줘"]')).toEqual(['배열 a[0] 확인해줘', '커밋해줘'])
+    // 고를 게 없다는 빈 배열은 머리말이 있어도 아무것도 띄우지 않는다.
+    expect(parseSuggestions('제안할 요청이 없습니다.\n[]')).toEqual([])
+    // 머리말 줄이 배열 바깥에 있으면 버린 줄로도 남지 않는다.
+    expect(parseReply(`다음과 같습니다.\n${three}`).rejected).toEqual([])
+    expect(debugLine(`사용자가 다음에 입력할 만한 요청 3개를 고르면 다음과 같습니다.\n${three}`, 80)).toBeUndefined()
+  })
+
+  test('머리말이나 규칙을 배열 안에 넣거나 배열 없이 줄로 써도, 요청을 되읊은 줄은 고르지 않는다', () => {
+    const inside = '["사용자가 다음에 입력할 만한 요청 3개를 고르면 다음과 같습니다.", "테스트 돌려줘", "커밋해줘"]'
+    expect(parseReply(inside)).toEqual({
+      accepted: ['테스트 돌려줘', '커밋해줘'],
+      rejected: [{ text: '사용자가 다음에 입력할 만한 요청 3개를 고르면 다음과 같습니다.', reason: 'echo' }],
+    })
+    expect(parseSuggestions('사용자가 바로 다음에 입력할 만한 요청을 골랐습니다.\n테스트 돌려줘')).toEqual(['테스트 돌려줘'])
+    // 규칙 문장을 옮겨 적은 줄.
+    expect(parseSuggestions('["답에 나오지 않은 파일, 서비스, 명령을 전제로 하지 않는다.", "커밋해줘"]')).toEqual(['커밋해줘'])
+    expect(parseSuggestions('["확인·검증: 방금 한 일이 맞는지 직접 확인한다.", "커밋해줘"]')).toEqual(['커밋해줘'])
+  })
+
+  test('되읊은 줄을 거르는 검사는 흔한 요청을 잘못 거르지 않는다', () => {
+    const usual = [
+      '방금 만든 테스트 돌려줘',
+      '변경 사항 커밋해줘',
+      'README에 반영해줘',
+      '0.9.0 릴리스 노트 써줘',
+      '--text-primary 정의 찾아줘',
+      '기능 페이지의 영상 테두리가 묻히는 문제를 실제 화면에서 재현해줘',
+      '같은 방식을 quick-replies에도 적용해줘',
+      '방금 고친 부분이 맞는지 직접 확인해줘',
+      '다음 결과물로 릴리스 노트 만들어줘',
+      '사용자 요청 기록을 한 줄씩 정리해서 보여줘',
+      '답에 나온 파일 이름을 목록으로 뽑아줘',
+      '현재 프로젝트 15개 페이지의 검토 결과를 표로 만들어줘',
+      'Add a test for the login form',
+      'Add a test for the login form submit handler',
+      'Run the tests and fix any failures',
+      'Write a README section for the retry option',
+    ]
+    expect(parseReply(JSON.stringify(usual)).rejected.filter(item => item.reason === 'echo')).toEqual([])
+  })
+
+  test('길이 한도에서 잘린 배열은 따옴표가 닫힌 요청까지 건지고, 잘린 객체 배열도 JSON 조각을 띄우지 않는다', () => {
+    expect(parseSuggestions('다음과 같습니다.\n["테스트 돌려줘", "커밋해줘", "README에 반')).toEqual(['테스트 돌려줘', '커밋해줘'])
+    expect(parseSuggestions('[{"요청": "테스트 돌려줘"}, {"요청": "커밋')).toEqual(['테스트 돌려줘'])
+    expect(parseSuggestions('{"suggestions": ["테스트 돌려줘", "커')).toEqual(['테스트 돌려줘'])
+    expect(parseSuggestions('["따옴표 \\"안\\" 문구 고쳐줘", "커')).toEqual(['따옴표 "안" 문구 고쳐줘'])
+    expect(jsonStrings('["')).toEqual([])
+    expect(jsonStrings('배열 없는 답')).toBeUndefined()
+  })
+
+  test('요청에는 JSON 문자열 배열 하나만 쓰라는 규칙이 들어가고, 줄 단위 출력이나 JSON 금지 규칙은 남지 않는다', () => {
+    expect(SYSTEM).toContain('JSON 문자열 배열 하나만')
+    expect(SYSTEM).not.toContain('JSON 없이')
+    expect(SYSTEM).not.toContain('한 줄에 하나')
+    expect(SYSTEM).toContain('배열 안 문장도 사용자의 마지막 요청과 같은 언어로 쓴다')
+    expect(buildPrompt('고쳐줘', '답').endsWith('(JSON 문자열 배열):')).toBe(true)
+  })
+
+  test('길이는 글자 수가 아니라 화면 폭으로 잰다. 한글·한자·가나·그림 문자는 두 칸, 영문·숫자·공백은 한 칸이다', () => {
+    expect(columns('abc 123')).toBe(7)
+    expect(columns('커밋해줘')).toBe(8)
+    expect(columns('api.ts 고쳐줘')).toBe(13)
+    expect(columns('テストを書いて')).toBe(14)
+    expect(columns('修正して')).toBe(8)
+    expect(columns('🚀 배포')).toBe(7)
+  })
+
+  test('한 줄 폭 120칸까지 받아, 한글은 60자까지, 영어는 120자까지 고른다', () => {
+    const hangul60 = '가'.repeat(60)
+    const english85 = 'Write unit tests for fetchJson covering retries on 5xx and immediate failure on 4xx too'
+    const english120 = 'a'.repeat(120)
+    expect(parseReply(JSON.stringify([hangul60, english85, english120]))).toEqual({ accepted: [hangul60, english85, english120], rejected: [] })
+    expect(parseReply(JSON.stringify(['가'.repeat(61), 'a'.repeat(121), `${'가'.repeat(60)}a`, `${'가'.repeat(59)}ab`])).rejected.map(r => r.reason)).toEqual([
+      'too-long',
+      'too-long',
+      'too-long',
+    ])
+    // 예전처럼 글자 수로 쟀다면 버렸을, 실제 모델이 쓴 영어 요청.
+    const real = [
+      'Write unit tests for fetchJson covering retry on 5xx and no retry on 4xx, please',
+      'Check whether retries on network errors also cover timeouts in api.ts, please',
+      'Add a short doc comment describing the retries option in api.ts, please',
+    ]
+    expect(parseSuggestions(JSON.stringify(real))).toEqual(real)
+  })
+
+  test('제안은 다른 언어로도 같은 규칙으로 고른다', () => {
+    const japanese = ['api.ts の fetchJson のリトライを実際に動かして確認して', 'リトライ処理を他の fetch 呼び出し箇所にも適用して']
+    expect(parseSuggestions(`以下です。\n${JSON.stringify(japanese)}`)).toEqual(japanese)
+    expect(SYSTEM).toContain('영어면 100자')
+  })
+
   test('정상 턴은 디버그 기록을 남기지 않고, 제안이 모자라거나 줄을 버리거나 한도에 닿은 턴만 이유와 함께 남긴다', () => {
     expect(debugLine('테스트 돌려줘\n커밋해줘\nREADME에 반영해줘', 40)).toBeUndefined()
 
@@ -47,7 +152,7 @@ describe('next-prompts', () => {
     ])
     expect(short.atTokenLimit).toBe(false)
 
-    const full = JSON.parse(debugLine('테스트 돌려줘\n커밋해줘\nREADME에 반영해줘\n하나 더 해줘', 200)!.replace(/^next-prompts: /, ''))
+    const full = JSON.parse(debugLine('테스트 돌려줘\n커밋해줘\nREADME에 반영해줘\n하나 더 해줘', 300)!.replace(/^next-prompts: /, ''))
     expect(full.atTokenLimit).toBe(true)
     expect(full.rejected).toEqual([{ text: '하나 더 해줘', reason: 'over-limit' }])
 
@@ -109,6 +214,63 @@ describe('next-prompts', () => {
     expect(await ui.find({ type: 'Text', text: 'engine-band' })).toBeDefined()
     await ui.unmount()
   })
+
+  test('모델이 JSON 배열 앞에 머리말을 붙여도 띠에는 배열 안의 요청만 $1부터 보인다', async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on)
+    const asked: { system?: string; prompt: string; maxTokens?: number }[] = []
+    on('model.complete', (_$, e) => {
+      asked.push({ system: e.system, prompt: e.prompt, maxTokens: e.maxTokens })
+      const text = [
+        '사용자가 다음에 입력할 만한 요청 3개를 규칙에 따라 고르면 다음과 같습니다.',
+        '["통제 섹션 부재 쟁점 정리해줘", "영상 테두리 문제 재현해줘", "검토 결과 표로 만들어줘"]',
+      ].join('\n')
+      return { value: { isAnswered: true, text, usage: { output_tokens: 90 } } as never }
+    })
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine-band</Text>
+    })
+    on('turn.complete', () => ({ text: '' }))
+    on('prompt.submit', () => ({ text: '' }) as never)
+
+    await $.prompt.submit({ text: '검토해줘' } as never)
+    await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
+    await clock.settle()
+    await clock.advance(2000)
+    expect(asked).toHaveLength(1)
+    expect(asked[0]!.system).toContain('JSON 문자열 배열 하나만')
+    expect(asked[0]!.maxTokens).toBe(300)
+    const ui = await $.ui.mount({ plugin: 'next-prompts', surface: 'terminal', ...BAND })
+    expect((await ui.find({ key: 'go:1' }))?.props?.label).toBe('통제 섹션 부재 쟁점 정리해줘')
+    expect((await ui.find({ key: 'go:3' }))?.props?.label).toBe('검토 결과 표로 만들어줘')
+    expect(await ui.find({ key: 'go:4' })).toBeUndefined()
+    expect(JSON.stringify(await ui.find({}))).not.toContain('다음과 같습니다')
+    await ui.unmount()
+  })
+
+  for (const [label, options, expected] of [
+    ['설정하지 않으면 haiku', undefined, 'haiku'],
+    ['opus를 고르면 opus', { model: 'opus' }, 'opus'],
+    ['sonnet을 고르면 sonnet', { model: 'sonnet' }, 'sonnet'],
+    ['목록에 없는 값은 무시하고 haiku', { model: 'gpt-4o' }, 'haiku'],
+  ] as const) {
+    test(`제안을 만드는 모델은 설정의 model을 따른다: ${label}`, options === undefined ? {} : { options }, async ($, on) => {
+      mock.store(on)
+      const clock = mock.clock(on)
+      const models: string[] = []
+      on('model.complete', (_$, e) => {
+        models.push(e.model)
+        return { value: { isAnswered: true, text: '["테스트 돌려줘"]', usage: { output_tokens: 10 } } as never }
+      })
+      on('turn.complete', () => ({ text: '' }))
+      on('prompt.submit', () => ({ text: '' }) as never)
+      await $.prompt.submit({ text: '고쳐줘' } as never)
+      await $.turn.complete({ reason: 'answer', answer: '가'.repeat(200), durationMs: 1, isAborted: false, turnId: 't' } as never)
+      await clock.settle()
+      expect(models).toEqual([expected])
+    })
+  }
 
   test('quick-replies가 프리셋을 접어 두어도 제안은 전체 문구로 보인다', async ($, on) => {
     mock.store(on)
