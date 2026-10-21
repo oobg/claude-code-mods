@@ -221,6 +221,11 @@ describe('quick-replies', () => {
     expect(parseTitle('{"title": ["테스트 추가"]}')).toBe('테스트 추가')
     expect(parseTitle('[{"제목": "테스트 추가"}]')).toBe('테스트 추가')
     expect(parseTitle('[1] 지었습니다\n["테스트 추가"]')).toBe('테스트 추가')
+    // 접은 띠는 마크다운을 그리지 않으니 기호를 걷어 낸다. 글롭과 __이름__은 둔다.
+    expect(parseTitle('["**테스트 추가**"]')).toBe('테스트 추가')
+    expect(parseTitle('["`/commit` 실행"]')).toBe('/commit 실행')
+    expect(parseTitle('["*.ts 정리"]')).toBe('*.ts 정리')
+    expect(parseTitle('["__init__ 정리"]')).toBe('__init__ 정리')
     // 길이 한도에서 잘린 배열도 닫힌 문자열은 건진다. 하나도 없으면 빈 제목이다.
     expect(parseTitle('["테스트 추가", "다')).toBe('테스트 추가')
     expect(parseTitle('["테스트 추')).toBe('')

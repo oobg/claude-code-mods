@@ -12,7 +12,7 @@ const ASK = '제목(JSON 문자열 배열):'
 export const TITLE_SYSTEM = [
   '너는 자주 보내는 요청 문구에 짧은 제목을 붙인다.',
   '규칙:',
-  `- 한글이면 ${MAX_TITLE_COLUMNS / 2}자, 영어면 ${MAX_TITLE_COLUMNS - 4}자 이내의 제목 하나만 쓴다. 번호나 설명은 붙이지 않는다.`,
+  `- 한글이면 ${MAX_TITLE_COLUMNS / 2}자, 영어면 ${MAX_TITLE_COLUMNS - 4}자 이내의 제목 하나만 쓴다. 번호, 설명, 마크다운은 붙이지 않는다.`,
   '- 문구의 언어와 말투를 따르고, 무엇을 하는 요청인지 드러나게 줄인다.',
   '- 문구가 /로 시작하면 슬래시 명령이다. 명령 이름보다 그 요청이 하는 일로 짓는다.',
   '- 답은 제목 하나를 담은 JSON 문자열 배열만 쓴다. 배열 앞뒤에 설명이나 머리말을 붙이지 않는다.',
@@ -101,9 +101,12 @@ function echoes(line: string): boolean {
 // 기호와 따옴표는 걷어 내고, 길면 자른다. 요청을 되읊었거나 쓸 게 없으면 빈 문자열.
 export function parseTitle(reply: string): string {
   const lines = jsonStrings(reply) ?? reply.split('\n')
+  // 접은 띠는 마크다운을 그리지 않아 **굵게**와 `코드`가 기호째 보인다.
   const line = (lines.find(l => l.trim() !== '') ?? '')
     .trim()
-    .replace(/^(제목\s*[:：]|\d+[.)]|[-*•])\s*/, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/^(제목\s*[:：]|\d+[.)]|[-*•](?=\s))\s*/, '')
     .replace(/^["'“‘`](.*)["'”’`]$/, '$1')
     .trim()
   return echoes(line) ? '' : cut(line)

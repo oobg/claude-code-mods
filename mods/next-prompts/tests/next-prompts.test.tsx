@@ -68,6 +68,47 @@ describe('next-prompts', () => {
     expect(parseSuggestions('["확인·검증: 방금 한 일이 맞는지 직접 확인한다.", "커밋해줘"]')).toEqual(['커밋해줘'])
   })
 
+  test('모델이 붙인 방향 라벨과 마크다운 기호는 걷어 내고 요청 문장만 남긴다', () => {
+    // 실제로 띠에 이렇게 떴던 답.
+    expect(
+      parseSuggestions(
+        JSON.stringify([
+          '**확인·검증** 방향: 링크 대화에서 답변이 다 왔는지 파일로 받아와 원본 48건과 대조해줘',
+          '**다음 산출물** 방향: 남은 display 배치 44건 대조 결과를 요약 문서로 만들어줘',
+        ]),
+      ),
+    ).toEqual(['링크 대화에서 답변이 다 왔는지 파일로 받아와 원본 48건과 대조해줘', '남은 display 배치 44건 대조 결과를 요약 문서로 만들어줘'])
+    const cleaned = (line: string) => parseSuggestions(JSON.stringify([line]))[0]
+    expect(cleaned('확인·검증: 테스트 돌려줘')).toBe('테스트 돌려줘')
+    expect(cleaned('1) 적용: 같은 수정을 orders.ts에도 해줘')).toBe('같은 수정을 orders.ts에도 해줘')
+    expect(cleaned('[다음 산출물] 릴리스 노트 써줘')).toBe('릴리스 노트 써줘')
+    expect(cleaned('(확인) 빌드 돌려줘')).toBe('빌드 돌려줘')
+    expect(cleaned('검증 방향： 로그 확인해줘')).toBe('로그 확인해줘')
+    expect(cleaned('**적용**: 같은 방식을 README에도 써줘')).toBe('같은 방식을 README에도 써줘')
+    expect(cleaned('`api.ts` 재시도 테스트를 **직접** 돌려줘')).toBe('api.ts 재시도 테스트를 직접 돌려줘')
+    expect(cleaned('`npm test` 돌려줘')).toBe('npm test 돌려줘')
+    // 라벨만 있고 요청이 없으면 고르지 않는다. 걷어 내고 같아진 줄은 겹친 것으로 본다.
+    expect(parseSuggestions('["**확인·검증**:", "테스트 돌려줘"]')).toEqual(['테스트 돌려줘'])
+    expect(parseReply('["**커밋해줘**", "커밋해줘"]')).toEqual({ accepted: ['커밋해줘'], rejected: [{ text: '커밋해줘', reason: 'duplicate' }] })
+  })
+
+  test('방향 이름으로 시작하는 평범한 요청이나 마크다운처럼 보이는 이름은 건드리지 않는다', () => {
+    const untouched = [
+      '적용 범위를 orders.ts까지 넓혀줘',
+      '확인해줘',
+      '검증 스크립트를 만들어줘',
+      '다음 산출물로 README 초안 써줘',
+      '*.ts 파일에서 TODO 찾아줘',
+      '__init__.py에 export 추가해줘',
+      '$1처럼 번호로 넣는 기능을 테스트해줘',
+      '확인 결과를 표로: 파일별로 정리해줘',
+    ]
+    expect(parseSuggestions(JSON.stringify(untouched))).toEqual(untouched.slice(0, 3))
+    for (const line of untouched) {
+      expect(parseSuggestions(JSON.stringify([line]))).toEqual([line])
+    }
+  })
+
   test('되읊은 줄을 거르는 검사는 흔한 요청을 잘못 거르지 않는다', () => {
     const usual = [
       '방금 만든 테스트 돌려줘',
