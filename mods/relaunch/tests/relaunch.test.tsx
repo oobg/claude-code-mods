@@ -1,7 +1,22 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { decodeArgs, isNewer, isShell, isWritable, parseHelp, pickArgs, parseProbe, parseVersion, launchScript, resumeArgv, shellQuote } from '../hooks/register'
+import {
+  decodeArgs,
+  isNewer,
+  isShell,
+  isWritable,
+  launchScript,
+  parseHelp,
+  parsePermissionModes,
+  parseProbe,
+  parseRelaunchArgs,
+  parseVersion,
+  pickArgs,
+  resumeArgv,
+  shellQuote,
+  withPermissionMode,
+} from '../hooks/register'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -127,6 +142,64 @@ describe('relaunch', () => {
     )
   })
 
+  test('도움말에서 권한 모드를 읽고, 친 낱말로 모드를 고른다', () => {
+    const modes = parsePermissionModes(HELP)
+    expect(modes).toEqual(['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'])
+    // 도움말을 읽지 못하면 아는 목록을 쓴다.
+    expect(parsePermissionModes('')).toEqual(modes)
+    expect(parseRelaunchArgs('', modes)).toEqual({ isForced: false })
+    expect(parseRelaunchArgs(' now ', modes)).toEqual({ isForced: true })
+    expect(parseRelaunchArgs('--now', modes)).toEqual({ isForced: true })
+    expect(parseRelaunchArgs('-n', modes)).toEqual({ isForced: true })
+    // 긴 옵션은 이름과 다른 이름을 받고, 대소문자를 가리지 않고, now와 순서는 상관없다.
+    expect(parseRelaunchArgs('--bypass', modes)).toEqual({ isForced: false, mode: 'bypassPermissions' })
+    expect(parseRelaunchArgs('now --Plan', modes)).toEqual({ isForced: true, mode: 'plan' })
+    expect(parseRelaunchArgs('--auto -n', modes)).toEqual({ isForced: true, mode: 'auto' })
+    expect(parseRelaunchArgs('--dontask', modes)).toEqual({ isForced: false, mode: 'dontAsk' })
+    expect(parseRelaunchArgs('--default', modes)).toEqual({ isForced: false, mode: 'manual' })
+    expect(parseRelaunchArgs('--manual', modes)).toEqual({ isForced: false, mode: 'manual' })
+    expect(parseRelaunchArgs('--skip', modes)).toEqual({ isForced: false, mode: 'bypassPermissions' })
+    expect(parseRelaunchArgs('--YOLO', modes)).toEqual({ isForced: false, mode: 'bypassPermissions' })
+    expect(parseRelaunchArgs('--edit', modes)).toEqual({ isForced: false, mode: 'acceptEdits' })
+    expect(parseRelaunchArgs('--accept', modes)).toEqual({ isForced: false, mode: 'acceptEdits' })
+    expect(parseRelaunchArgs('--bypassPermissions', modes)).toEqual({ isForced: false, mode: 'bypassPermissions' })
+    // 긴 옵션은 앞부분이 한 모드로 정해지면 받는다.
+    expect(parseRelaunchArgs('--byp', modes)).toEqual({ isForced: false, mode: 'bypassPermissions' })
+    expect(parseRelaunchArgs('--de', modes)).toEqual({ isForced: false, mode: 'manual' })
+    expect(parseRelaunchArgs('--sk', modes)).toEqual({ isForced: false, mode: 'bypassPermissions' })
+    // 짧은 옵션은 한 글자로 정해 둔 모드다.
+    expect(parseRelaunchArgs('-b', modes)).toEqual({ isForced: false, mode: 'bypassPermissions' })
+    expect(parseRelaunchArgs('-P', modes)).toEqual({ isForced: false, mode: 'plan' })
+    expect(parseRelaunchArgs('-a', modes)).toEqual({ isForced: false, mode: 'auto' })
+    expect(parseRelaunchArgs('-e', modes)).toEqual({ isForced: false, mode: 'acceptEdits' })
+    expect(parseRelaunchArgs('-d', modes)).toEqual({ isForced: false, mode: 'dontAsk' })
+    expect(parseRelaunchArgs('-m', modes)).toEqual({ isForced: false, mode: 'manual' })
+    const error = (args: string) => {
+      const parsed = parseRelaunchArgs(args, modes)
+      return 'error' in parsed ? parsed.error : undefined
+    }
+    // 대시 없는 이름은 대시를 붙이라고 알린다.
+    expect(error('plan')).toContain('`--plan`처럼 대시를 붙여')
+    expect(error('b')).toContain('대시를 붙여')
+    // 짧은 옵션에 여러 글자, 모르는 옵션, 여러 모드에 맞는 앞부분, 두 모드는 고르지 않는다.
+    expect(error('-plan')).toContain('알 수 없는 권한 모드')
+    expect(error('-bn')).toContain('알 수 없는 권한 모드')
+    expect(error('-x')).toContain('알 수 없는 권한 모드')
+    expect(error('--zzz')).toContain('알 수 없는 권한 모드')
+    expect(error('--')).toContain('알 수 없는 권한 모드')
+    expect(error('--d')).toContain('여러 모드에 맞는 권한 모드')
+    expect(error('--a')).toContain('여러 모드에 맞는 권한 모드')
+    expect(error('--plan --auto')).toContain('하나만')
+    expect(error('--zzz')).toContain('`--bypass`(`-b`)')
+  })
+
+  test('권한 모드를 고르면 처음 권한 옵션을 빼고 그 모드를 붙인다', () => {
+    expect(withPermissionMode(['--dangerously-skip-permissions', '--model', 'opus'], 'plan')).toEqual(['--model', 'opus', '--permission-mode', 'plan'])
+    expect(withPermissionMode(['--permission-mode', 'plan', '--verbose'], 'auto')).toEqual(['--verbose', '--permission-mode', 'auto'])
+    expect(withPermissionMode(['--permission-mode=plan'], 'bypassPermissions')).toEqual(['--permission-mode', 'bypassPermissions'])
+    expect(withPermissionMode(['--allow-dangerously-skip-permissions'], 'manual')).toEqual(['--allow-dangerously-skip-permissions', '--permission-mode', 'manual'])
+  })
+
   test('perl이 낸 16진수 줄을 인자로 되돌린다', () => {
     const hex = (text: string) => Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, '0')).join('')
     expect(decodeArgs(['claude', '두 단어', 'a\nb', ''].map(hex).join('\n') + '\n')).toEqual(['claude', '두 단어', 'a\nb', ''])
@@ -150,6 +223,9 @@ const HELP = [
   '  --model <model>                       Model for the current session. Provide',
   '  -n, --name <name>                     Set a display name for this session',
   '  --permission-mode <mode>              Permission mode to use for the session',
+  '                                        (choices: "acceptEdits", "auto",',
+  '                                        "bypassPermissions", "manual",',
+  '                                        "dontAsk", "plan")',
   '  --plugin-dir <path>                   Load a plugin from a directory or .zip',
   '  -r, --resume [value]                  Resume a conversation by session ID, or',
   '  --settings <file-or-json>             Path to a settings JSON file or a JSON',
@@ -287,6 +363,37 @@ describe('relaunch 다시 열기', () => {
     expect(exits).toEqual(['exit'])
   })
 
+  test('권한 모드를 고르면 처음 권한 옵션 대신 그 모드로 연다', async ($, on) => {
+    const { clock, exits, world } = session(on, ORCA)
+    await start($)
+    const { text } = await $.command.run({ command: 'relaunch', args: '-p' } as never)
+    expect(text).toContain('`plan` 권한 모드로 다시 열어요')
+    expect(world.scripts).toEqual({
+      '/tmp/claude-relaunch-script.TEST1234': `#!/bin/sh\n/bin/rm -f -- "$0" || exit 1\nexec /usr/local/bin/claude --model opus --permission-mode plan --resume ${SID}\n`,
+    })
+    await clock.advance(600)
+    expect(exits).toEqual(['exit'])
+  })
+
+  test('모르는 권한 모드면 아무것도 하지 않고 고를 수 있는 모드를 알려 준다', async ($, on) => {
+    const { clock, exits, world } = session(on, ORCA)
+    await start($)
+    const { text } = await $.command.run({ command: 'relaunch', args: '--zzz' } as never)
+    expect(text).toContain('`--bypass`(`-b`)')
+    await clock.advance(2_000)
+    expect(exits).toEqual([])
+    expect(world.helpers).toEqual([])
+    expect(world.scripts).toEqual({})
+  })
+
+  test('Orca 탭 밖에서 권한 모드를 고르면 수동 명령에도 그 모드가 붙는다', async ($, on) => {
+    const { world } = session(on, { TMPDIR: '/tmp/' }, { argv: null })
+    await start($)
+    const { text } = await $.command.run({ command: 'relaunch', args: '--bypass' } as never)
+    expect(text).toContain(`claude --permission-mode bypassPermissions --resume ${SID}`)
+    expect(world.helpers).toEqual([])
+  })
+
   test('처음 옵션을 읽지 못하면 끝내지 않는다', async ($, on) => {
     const { clock, exits, world } = session(on, ORCA, { argv: null })
     await start($)
@@ -302,6 +409,9 @@ describe('relaunch 다시 열기', () => {
     await start($)
     const asked = await $.command.run({ command: 'relaunch', args: '' } as never)
     expect(asked.text).toContain('에이전트 1개가 작업 중이에요')
+    // 모드를 골랐으면 다시 칠 명령에도 친 옵션을 그대로 넣는다.
+    const withMode = await $.command.run({ command: 'relaunch', args: '--byp' } as never)
+    expect(withMode.text).toContain('`/relaunch --byp now`')
     await clock.advance(600)
     expect(exits).toEqual([])
     const forced = await $.command.run({ command: 'relaunch', args: 'now' } as never)

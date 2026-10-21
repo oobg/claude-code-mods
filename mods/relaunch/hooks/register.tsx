@@ -171,6 +171,96 @@ export function pickArgs(args: readonly string[], spec: ReadonlyMap<string, Arit
   return { kept }
 }
 
+// 도움말을 읽지 못했을 때 쓰는 권한 모드. 2.1.303의 `--permission-mode` choices다.
+const PERMISSION_MODES = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan']
+
+// `claude --help`에서 `--permission-mode`가 받는 모드를 읽는다. 설명이 여러 줄로 접혀 있어 다음 옵션 전까지 이어 읽는다.
+export function parsePermissionModes(help: string): string[] {
+  const lines = help.split('\n')
+  const at = lines.findIndex(line => line.startsWith('  --permission-mode '))
+  if (at === -1) {
+    return PERMISSION_MODES
+  }
+  const end = lines.findIndex((line, i) => i > at && !line.startsWith('   '))
+  const text = lines.slice(at, end === -1 ? undefined : end).join(' ')
+  const choices = /\(choices: ([^)]*)\)/.exec(text)?.[1]
+  const modes = choices === undefined ? [] : Array.from(choices.matchAll(/"([^"]+)"/g), match => match[1]!)
+  return modes.length > 0 ? modes : PERMISSION_MODES
+}
+
+// 모드를 고르는 옵션. 긴 옵션(`--plan`)과 짧은 옵션(`-p`)이 짝이다. `a`는 acceptEdits와 auto에, `d`는 dontAsk와 default에
+// 다 맞아 하나로 정해 둔다.
+const MODE_OPTIONS: { long: string; short: string; mode: string }[] = [
+  { long: 'plan', short: 'p', mode: 'plan' },
+  { long: 'auto', short: 'a', mode: 'auto' },
+  { long: 'bypass', short: 'b', mode: 'bypassPermissions' },
+  { long: 'edit', short: 'e', mode: 'acceptEdits' },
+  { long: 'dontask', short: 'd', mode: 'dontAsk' },
+  { long: 'default', short: 'm', mode: 'manual' },
+]
+// 긴 옵션의 다른 이름. 앞부분을 찾을 때 함께 본다.
+const MODE_ALIASES: Record<string, string> = {
+  skip: 'bypassPermissions',
+  yolo: 'bypassPermissions',
+  accept: 'acceptEdits',
+  manual: 'manual',
+}
+const NOW = new Set(['now', '--now', '-n'])
+
+export type RelaunchArgs = { isForced: boolean; mode?: string } | { error: string }
+
+// `/relaunch [--모드 | -글자] [now]`의 인자를 읽는다. 순서는 상관없고 대소문자를 가리지 않는다.
+// `now`는 `--now`, `-n`으로도 받는다. 짧은 옵션은 한 글자만 받는다. 긴 옵션은 옵션 이름, 다른 이름, 엔진의 모드 이름에서
+// 같은 이름을, 없으면 앞부분이 맞는 이름을 찾는다. 한 모드로 정해지지 않으면 고르지 않는다.
+export function parseRelaunchArgs(args: string, modes: readonly string[]): RelaunchArgs {
+  const words = args.split(/\s+/).filter(word => word !== '')
+  const isForced = words.some(word => NOW.has(word.toLowerCase()))
+  const rest = words.filter(word => !NOW.has(word.toLowerCase()))
+  const options = MODE_OPTIONS.filter(option => modes.includes(option.mode))
+  const others = modes.filter(mode => !options.some(option => option.mode === mode))
+  const list = `고를 수 있는 모드: ${[...options.map(option => `\`--${option.long}\`(\`-${option.short}\`)`), ...others.map(mode => `\`--${mode.toLowerCase()}\``)].join(', ')}`
+  if (rest.length === 0) {
+    return { isForced }
+  }
+  if (rest.length > 1) {
+    return { error: `권한 모드는 하나만 고를 수 있어요(${rest.map(word => `\`${word}\``).join(' ')}). ${list}` }
+  }
+  const word = rest[0]!.toLowerCase()
+  let found: string[] = []
+  if (word.startsWith('--')) {
+    const name = word.slice(2)
+    const names: [string, string][] = [
+      ...options.map(option => [option.long, option.mode] as [string, string]),
+      ...Object.entries(MODE_ALIASES).filter(([, mode]) => modes.includes(mode)),
+      ...modes.map(mode => [mode.toLowerCase(), mode] as [string, string]),
+    ]
+    const exact = names.find(([long]) => long === name)?.[1]
+    found = exact !== undefined ? [exact] : name === '' ? [] : [...new Set(names.filter(([long]) => long.startsWith(name)).map(([, mode]) => mode))]
+  } else if (/^-[a-z]$/.test(word)) {
+    found = options.filter(option => option.short === word[1]).map(option => option.mode)
+  } else if (!word.startsWith('-')) {
+    return { error: `\`--${word}\`처럼 대시를 붙여 주세요. ${list}` }
+  }
+  if (found.length !== 1) {
+    return { error: `${found.length === 0 ? '알 수 없는' : '여러 모드에 맞는'} 권한 모드예요(\`${rest[0]}\`). ${list}` }
+  }
+  return { isForced, mode: found[0] }
+}
+
+// 처음 권한 옵션을 빼고 고른 권한 모드를 붙인다. `--allow-dangerously-skip-permissions`는 모드를 고르지 않으니 남긴다.
+export function withPermissionMode(kept: readonly string[], mode: string): string[] {
+  const args: string[] = []
+  for (let i = 0; i < kept.length; i++) {
+    const arg = kept[i]!
+    if (arg === '--permission-mode') {
+      i += 1
+    } else if (!arg.startsWith('--permission-mode=') && arg !== '--dangerously-skip-permissions') {
+      args.push(arg)
+    }
+  }
+  return [...args, '--permission-mode', mode]
+}
+
 // 셸에 그대로 칠 수 있게 감싼다. 안전한 글자만 있으면 그대로 둔다.
 export function shellQuote(arg: string): string {
   return /^[A-Za-z0-9_@%+=:,.\/-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`
@@ -216,10 +306,24 @@ const SCRIPT_PREFIX = 'claude-relaunch-script.'
 let isRelaunching = false
 
 // 지금 대화를 끝내고 같은 Orca 탭에서 다시 연다. 안전하게 할 수 없으면 아무것도 끝내지 않고 이유와 수동 명령을 낸다.
-async function relaunch($: EngineInterface, isForced: boolean): Promise<string> {
+// `args`는 `/relaunch` 뒤에 친 글이다. 권한 모드를 고르면 처음 권한 옵션 대신 그 모드로 연다.
+async function relaunch($: EngineInterface, args: string): Promise<string> {
   if (isRelaunching) {
     return '이미 다시 여는 중이에요.'
   }
+  // 업데이트 확인과 같은 `claude`를 절대 경로로 찾아, 그 도움말을 읽고 그 경로로 다시 연다.
+  const which = await $.process.run(['/bin/sh', '-c', 'command -v claude'], { timeoutMs: 5_000 }).catch(() => undefined)
+  const installed = which?.exitCode === 0 && which.stdout.trim().startsWith('/') ? which.stdout.trim() : undefined
+  const help = installed === undefined ? undefined : await $.process.run([installed, '--help'], { timeoutMs: 10_000 }).catch(() => undefined)
+  const helpText = help?.exitCode === 0 ? help.stdout : ''
+  const parsed = parseRelaunchArgs(args, parsePermissionModes(helpText))
+  if ('error' in parsed) {
+    return parsed.error
+  }
+  const { isForced, mode } = parsed
+  // 에이전트 확인에서 다시 칠 명령에 사용자가 친 모드 옵션을 그대로 넣는다.
+  const modeArg = mode === undefined ? undefined : args.split(/\s+/).find(word => word.startsWith('-') && !NOW.has(word.toLowerCase()))
+
   const sessionId = await $.session.id()
   // 대화 기록이 없는 세션은 --resume으로 돌아올 수 없어 새로 연다.
   const hasTranscript = (await $.session.messages()).length > 0
@@ -235,35 +339,32 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
           .run(['perl', `${$.plugin.root}/hooks/argv.pl`, claude.pid], { timeoutMs: 5_000 })
           .then(run => (run.exitCode === 0 ? decodeArgs(run.stdout) : undefined))
           .catch(() => undefined)
-  // 업데이트 확인과 같은 `claude`를 절대 경로로 찾아, 그 도움말을 읽고 그 경로로 다시 연다.
-  const which = await $.process.run(['/bin/sh', '-c', 'command -v claude'], { timeoutMs: 5_000 }).catch(() => undefined)
-  const installed = which?.exitCode === 0 && which.stdout.trim().startsWith('/') ? which.stdout.trim() : undefined
-  const help = installed === undefined ? undefined : await $.process.run([installed, '--help'], { timeoutMs: 10_000 }).catch(() => undefined)
-  const spec = parseHelp(help?.exitCode === 0 ? help.stdout : '')
+  const spec = parseHelp(helpText)
   // 도움말을 거의 못 읽었으면 어느 인자가 옵션 값인지 알 수 없다.
   const isReadable = argv !== undefined && argv.length > 0 && spec.size >= 10
   const picked = isReadable ? pickArgs(argv.slice(1), spec) : undefined
+  const kept = picked !== undefined && 'kept' in picked ? (mode === undefined ? picked.kept : withPermissionMode(picked.kept, mode)) : undefined
 
   // 옵션을 고를 수 있으면 다시 여는 스크립트를 미리 써 둔다. 자동으로 열지 못해도 사람이 그 스크립트로 열 수 있다.
   const tmp = ((await $.env.get('TMPDIR')) ?? '/tmp').replace(/\/$/, '')
   let script: string | undefined
-  if (picked !== undefined && 'kept' in picked && isSessionId(sessionId)) {
+  if (kept !== undefined && isSessionId(sessionId)) {
     // mktemp로 본인만 읽을 수 있는 새 파일을 배타적으로 만든다. 있던 파일을 지우고 같은 이름으로 다시 만들지 않는다.
     // 내용을 다 쓰지 못하면 만든 파일을 지운다.
     const written = await $.process
       .run(['/bin/sh', '-c', `f=$(mktemp "$1/${SCRIPT_PREFIX}XXXXXXXX") || exit 1; cat > "$f" && printf %s "$f" || { rm -f -- "$f"; exit 1; }`, 'sh', tmp], {
-        stdin: launchScript(resumeArgv(argv![0]!, picked.kept, resumeId, installed)),
+        stdin: launchScript(resumeArgv(argv![0]!, kept, resumeId, installed)),
         timeoutMs: 5_000,
       })
       .catch(() => undefined)
     script = written?.exitCode === 0 && written.stdout.startsWith(`${tmp}/${SCRIPT_PREFIX}`) ? written.stdout : undefined
   }
   const command = script === undefined ? undefined : `/bin/sh ${shellQuote(script)}`
-  const bare = resumeId === undefined ? 'claude' : `claude --resume ${resumeId}`
+  const bare = ['claude', ...(mode === undefined ? [] : ['--permission-mode', mode]), ...(resumeId === undefined ? [] : ['--resume', resumeId])].join(' ')
   const manual =
     command === undefined
       ? `직접 /exit 한 뒤 처음 옵션을 붙여 \`${bare}\`처럼 다시 열어 주세요.`
-      : `직접 /exit 한 뒤 \`${command}\`로 다시 열어 주세요. 처음 옵션을 그대로 붙여 엽니다. 이 파일은 한 시간이 지난 뒤 Claude Code 세션이 시작될 때 지워집니다.`
+      : `직접 /exit 한 뒤 \`${command}\`로 다시 열어 주세요. ${mode === undefined ? '처음 옵션을 그대로 붙여' : `처음 권한 옵션 대신 \`${mode}\` 권한 모드로`} 엽니다. 이 파일은 한 시간이 지난 뒤 Claude Code 세션이 시작될 때 지워집니다.`
 
   if (!isSessionId(sessionId)) {
     return `세션 id를 알아보지 못했어요. ${manual}`
@@ -287,7 +388,7 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
   // 서브에이전트나 팀원이 일하는 중이면 끊기니 먼저 묻는다. 백그라운드 셸 작업은 모드가 볼 수 없다.
   const busy = (await $.agent.list()).filter(agent => ['pending', 'running', 'waiting'].includes(agent.status))
   if (busy.length > 0 && !isForced) {
-    return `에이전트 ${busy.length}개가 작업 중이에요. 끝난 뒤 다시 하거나, 끊어도 되면 \`/relaunch now\`로 바로 다시 열어요.`
+    return `에이전트 ${busy.length}개가 작업 중이에요. 끝난 뒤 다시 하거나, 끊어도 되면 \`${['/relaunch', modeArg, 'now'].filter(Boolean).join(' ')}\`로 바로 다시 열어요.`
   }
 
   if (claude === undefined) {
@@ -335,6 +436,9 @@ async function relaunch($: EngineInterface, isForced: boolean): Promise<string> 
       $.ui.toast('Claude Code를 끝내지 못했어요. 다시 시도하거나 직접 /exit 해 주세요')
     })
   })
+  if (mode !== undefined) {
+    return `Claude Code를 \`${mode}\` 권한 모드로 다시 열어요. 다시 열리지 않으면 \`${command}\`로 열어 주세요.`
+  }
   // 처음 권한 옵션을 다시 걸면, 실행 중 낮춘 권한이 처음 값으로 돌아갈 수 있어 알린다.
   const permission = picked.kept.filter(arg => /^--(permission-mode|dangerously-skip-permissions|allow-dangerously-skip-permissions)\b/.test(arg))
   const note = permission.length > 0 ? ` 처음 권한 옵션(${permission.map(arg => `\`${arg.split('=')[0]}\``).join(', ')})도 다시 붙어요.` : ''
@@ -393,8 +497,8 @@ export const register: Register = on => {
     isRelaunching = false
     await $.command.register({
       name: 'relaunch',
-      description: '지금 대화를 새로 설치된 Claude Code로 다시 열기 (Orca 탭)',
-      argumentHint: '[now]',
+      description: '지금 대화를 새로 설치된 Claude Code로 다시 열기, 권한 모드를 바꿔 열 수도 있음 (Orca 탭)',
+      argumentHint: '[-p|-a|-b|-e|-d|-m] [now]',
     })
     void reportRelaunched($).catch(() => {})
     void $.env
@@ -411,7 +515,7 @@ export const register: Register = on => {
     return result
   })
 
-  on('command.run', { command: 'relaunch' }, async ($, e) => ({ text: await relaunch($, e.args.trim() === 'now') }))
+  on('command.run', { command: 'relaunch' }, async ($, e) => ({ text: await relaunch($, e.args) }))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (e.surface !== 'terminal' && e.surface !== 'desktop')) {
@@ -442,7 +546,7 @@ export const register: Register = on => {
             $.ui.toast(
               isWorking
                 ? '지금 작업이 끝난 뒤 다시 눌러 주세요'
-                : await relaunch($, false),
+                : await relaunch($, ''),
             )
           }
         >

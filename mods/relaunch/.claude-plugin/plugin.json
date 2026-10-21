@@ -1,7 +1,7 @@
 {
   "name": "relaunch",
-  "version": "0.2.1",
-  "description": "Claude Code 새 버전이 설치되면 입력창 위에 알립니다. /relaunch로 다시 시작해 지금 대화를 이어서 엽니다. 자동 다시 열기는 Orca 터미널 탭 전용",
+  "version": "0.3.0",
+  "description": "Claude Code 새 버전이 설치되면 입력창 위에 알립니다. /relaunch로 다시 시작해 같은 대화를 이어 열고, 권한 모드도 바꿀 수 있습니다. 자동으로 다시 열기는 Orca 터미널 탭에서만 지원합니다.",
   "license": "MIT",
   "author": {
     "name": "oobg"
