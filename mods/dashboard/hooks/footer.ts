@@ -28,6 +28,16 @@ export function lastPermissionMode(transcript: string): string | null {
   return found.at(-1)?.[1] ?? null
 }
 
+// 기록에 처음 적힌 권한 모드. 세션을 열 때 엔진이 고른 모드다.
+export function firstPermissionMode(transcript: string): string | null {
+  return /"permissionMode":"([^"]+)"/.exec(transcript)?.[1] ?? null
+}
+
+// 실행 줄이 bypass 모드를 Shift+Tab 순환에 넣는지. 엔진은 이 플래그로 띄웠을 때만 bypass로 넘어간다.
+export function launchAllowsBypass(args: string): boolean {
+  return /(^|\s)--(allow-)?dangerously-skip-permissions(\s|$)/.test(args)
+}
+
 // Claude Code 실행 줄에서 처음 권한 모드를 읽는다. 플래그가 없으면 null(설정의 기본값을 따른다).
 export function launchPermissionMode(args: string): string | null {
   if (/(^|\s)--dangerously-skip-permissions(\s|$)/.test(args)) {
@@ -37,8 +47,21 @@ export function launchPermissionMode(args: string): string | null {
   return found ?? null
 }
 
-// Shift+Tab으로 권한 모드를 바꾸면 엔진은 안내 줄을 새 모드 이름(`plan mode on (shift+tab to cycle)`)으로 한 번 그린 뒤
-// 이름 없이 다시 그린다. 모드가 바뀌었다는 이벤트는 따로 없어서, 이 이름을 보고 지금 모드를 안다. 이름이 없으면 null.
+// 설정 출처. 앞선 출처의 defaultMode가 이긴다.
+export const SETTINGS_SOURCES = ['policy', 'flag', 'local', 'project', 'user'] as const
+
+// 설정의 defaultMode로 엔진이 여는 모드. 프로젝트 설정(local, project)은 저장소가 정할 수 있어서,
+// 엔진은 거기 적힌 bypassPermissions를 default로 열고 auto는 없는 것으로 본다(null).
+export function settingsStartMode(source: (typeof SETTINGS_SOURCES)[number], mode: string): string | null {
+  if (source !== 'local' && source !== 'project') {
+    return mode
+  }
+  return mode === 'bypassPermissions' ? 'default' : mode === 'auto' ? null : mode
+}
+
+// Shift+Tab으로 권한 모드를 바꾸면 엔진(2.1.306)은 안내 줄을 방금 떠난 모드의 이름(`plan mode on (shift+tab to cycle)`)으로
+// 한 번 그린 뒤 이름 없이 다시 그린다. 모드가 바뀌었다는 이벤트는 따로 없어서, 이 이름의 다음 모드(nextMode)가 지금 모드다.
+// 이름이 없으면 null.
 const HINT_LABELS: Record<string, string> = {
   'manual mode on': 'default',
   'accept edits on': 'acceptEdits',
@@ -50,6 +73,22 @@ const HINT_LABELS: Record<string, string> = {
 export function modeFromHint(hint: string): string | null {
   const label = Object.keys(HINT_LABELS).find(name => hint.startsWith(name))
   return label === undefined ? null : (HINT_LABELS[label] ?? null)
+}
+
+// 엔진의 Shift+Tab 순환: default → acceptEdits → plan → bypass(쓸 수 있으면) → auto(쓸 수 있으면) → default.
+export function nextMode(left: string, can: { bypass: boolean; auto: boolean }): string {
+  switch (left) {
+    case 'default':
+      return 'acceptEdits'
+    case 'acceptEdits':
+      return 'plan'
+    case 'plan':
+      return can.bypass ? 'bypassPermissions' : can.auto ? 'auto' : 'default'
+    case 'bypassPermissions':
+      return can.auto ? 'auto' : 'default'
+    default:
+      return 'default'
+  }
 }
 
 export function pullFor(permissionMode: string | null): number {
@@ -108,6 +147,7 @@ export function withSection(
   return {
     type: 'Box',
     props: { key: FOOTER_KEY, flexDirection: 'column' },
-    children: [{ type: 'Text', props: { dimColor: true }, children: [hint] }, ...sections],
+    // 엔진은 default 모드에서 문구 없이(빈 문자열) 넘긴다. 빈 줄은 높이가 없어 구역이 모드 표시 줄을 덮으므로 공백 하나로 줄을 남긴다.
+    children: [{ type: 'Text', props: { dimColor: true }, children: [hint === '' ? ' ' : hint] }, ...sections],
   }
 }

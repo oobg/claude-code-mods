@@ -2,7 +2,18 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Segment, Snapshot, Style, Theme } from '../types'
-import { launchPermissionMode, lastPermissionMode, modeFromHint, pullFor, withSection } from './footer'
+import {
+  SETTINGS_SOURCES,
+  firstPermissionMode,
+  launchAllowsBypass,
+  launchPermissionMode,
+  lastPermissionMode,
+  modeFromHint,
+  nextMode,
+  pullFor,
+  settingsStartMode,
+  withSection,
+} from './footer'
 import { GAPS, STYLES, THEME_NAMES, buildLayout, parseUsageLimits } from './lines'
 import type { PolledLimit } from './lines'
 
@@ -167,6 +178,15 @@ async function render($: EngineInterface): Promise<void> {
     readTranscript($),
   ])
   const mode = transcript === null ? null : lastPermissionMode(transcript.text)
+  // 실행 인자도 설정도 없이 연 세션이면, 기록에 처음 적힌 모드가 엔진이 고른 시작 모드다. 다음 새 세션에 쓰려고 저장한다.
+  // Shift+Tab을 이미 눌렀다면 처음 적힌 모드가 시작 모드가 아닐 수 있어 배우지 않는다.
+  if (learnStartMode && transcript !== null && hintedMode === null) {
+    const first = firstPermissionMode(transcript.text)
+    if (first !== null) {
+      learnStartMode = false
+      await $.store.set(START_MODE_KEY, first)
+    }
+  }
   const polled = await currentPolled($)
   const polledFable = polled.find(p => p.kind === 'fable')
   const taken: Snapshot = {
@@ -188,28 +208,32 @@ async function render($: EngineInterface): Promise<void> {
     nowMs: now,
   }
   await update($, snapshot, () => taken)
-  // 새 세션은 기록 파일에 권한 모드가 아직 없다. 그때는 훅 이벤트로 받아 둔 값을 그대로 둔다.
+  // 새 세션은 기록 파일에 권한 모드가 아직 없다. 그때는 실행 인자나 설정에서 읽어 둔 값을 그대로 둔다.
   if (mode !== null) {
+    seenModes.add(mode)
+  }
+  if (mode !== null && mode !== (await read($, permissionMode))) {
+    // 기록에 새 모드가 적혔다면 그 값이 가장 새롭다. 안내 줄에서 읽어 둔 값은 버린다.
+    hintedMode = null
     await update($, permissionMode, () => mode)
   }
 }
 
-// Claude Code의 기본 훅 이벤트에는 지금 권한 모드가 실려 온다. 새 세션은 기록 파일에 아직 권한 모드가 없어서,
-// 이 값으로 권한 모드 표시 폭만큼 당긴다.
-async function notePermissionMode($: EngineInterface, e: { permission_mode?: string }): Promise<void> {
-  const mode = e.permission_mode
-  if (typeof mode === 'string') {
-    // 훅 이벤트가 실어 온 값이 가장 새롭다. 안내 줄에서 읽어 둔 값은 버린다.
-    hintedMode = null
-    if (mode !== (await read($, permissionMode))) {
-      await update($, permissionMode, () => mode)
-    }
-  }
-}
+// 권한 모드를 훅 이벤트(classic.*)로 받지 않는다. 그 이벤트는 앞에 앉은 플러그인(cc-plugin-sec-default)이 이 모드를 건너뛰고 넘길 수 있다.
+
+// 실행 인자도 설정도 없을 때 엔진이 고르는 시작 모드는 계정마다 다르다(auto 모드를 쓸 수 있으면 auto, 아니면 default).
+// 모드가 읽을 길이 없어서, 그런 세션의 기록에서 배워 두고 다음 새 세션에 쓴다.
+const START_MODE_KEY = 'startMode'
+let learnStartMode = false
 
 // Shift+Tab으로 바꾼 권한 모드. 그리기는 상태를 쓰지 못하므로 모듈 변수에 둔다.
 // 기록 파일은 다음 메시지 전까지 예전 모드를 담고 있으므로, 이 값이 있으면 기록에서 읽은 값보다 먼저 쓴다.
 let hintedMode: string | null = null
+// 바로 전 안내 줄에 있던 모드 이름. 같은 이름으로 다시 그려도 한 번만 넘어가게 한다.
+let lastLabel: string | null = null
+// 이 세션에서 본 권한 모드와, 실행 줄이 bypass를 순환에 넣는지. Shift+Tab 순환에 auto, bypass가 끼는지 정한다.
+const seenModes = new Set<string>()
+let bypassAllowed = false
 
 // 모드가 띄운 프로세스의 부모를 따라 올라가 Claude Code의 실행 줄을 찾는다. 못 찾으면 빈 문자열.
 const LAUNCH_SCRIPT =
@@ -217,13 +241,29 @@ const LAUNCH_SCRIPT =
   'case "$a" in claude|claude\\ *|*/claude|*/claude\\ *) echo "$a"; exit 0;; esac; ' +
   'p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " "); [ -z "$p" ] && break; done'
 
-async function readLaunchMode($: EngineInterface): Promise<string | null> {
+async function readLaunchLine($: EngineInterface): Promise<string> {
   try {
     const { exitCode, stdout } = await $.process.run(['sh', '-c', LAUNCH_SCRIPT], { timeoutMs: 5_000 })
-    return exitCode === 0 ? launchPermissionMode(stdout.trim()) : null
+    return exitCode === 0 ? stdout.trim() : ''
   } catch {
-    return null
+    return ''
   }
+}
+
+// 실행 인자에 권한 모드가 없을 때 Claude Code가 따르는 설정의 permissions.defaultMode. 앞선 출처가 이긴다.
+async function readSettingsMode($: EngineInterface): Promise<string | null> {
+  for (const source of SETTINGS_SOURCES) {
+    try {
+      const permissions = (await $.settings.read({ source })).permissions as { defaultMode?: unknown } | undefined
+      const mode = permissions?.defaultMode
+      if (typeof mode === 'string') {
+        return settingsStartMode(source, mode)
+      }
+    } catch {
+      // 읽지 못하면 다음 출처를 본다.
+    }
+  }
+  return null
 }
 
 // 세션마다 한 번: 저장된 선택을 읽고, 명령을 등록하고, 타이머를 건다.
@@ -235,9 +275,15 @@ async function start($: EngineInterface): Promise<void> {
     return
   }
   started = true
-  // 기록에도 훅 이벤트에도 권한 모드가 아직 없으면(새 세션, 다시 불러온 직후) 실행 인자로 처음 값을 정한다.
+  // 권한 모드를 아직 모르면(새 세션, 다시 불러온 직후) 실행 인자, 설정, 배워 둔 시작 모드 순서로 처음 값을 정한다.
   if ((await read($, permissionMode)) === null) {
-    const launched = (await readLaunchMode($)) ?? 'default'
+    const line = await readLaunchLine($)
+    bypassAllowed = launchAllowsBypass(line)
+    const given = launchPermissionMode(line) ?? (await readSettingsMode($))
+    learnStartMode = given === null
+    const learned = (await $.store.get(START_MODE_KEY)) as string | undefined
+    const launched = given ?? learned ?? 'default'
+    seenModes.add(launched)
     if ((await read($, permissionMode)) === null) {
       await update($, permissionMode, () => launched)
     }
@@ -301,16 +347,6 @@ export const register: Register = on => {
     return result
   })
 
-  // 받기만 하고 이벤트는 그대로 흘려보낸다.
-  on('classic.SessionStart', async ($, e, next) => {
-    await notePermissionMode($, e)
-    return next(e)
-  })
-  on('classic.UserPromptSubmit', async ($, e, next) => {
-    await notePermissionMode($, e)
-    return next(e)
-  })
-
   // /dashboard-style [이름]: 모양을 바꾼다. 이름이 없으면 다음 모양으로 넘어간다.
   on('command.run', { command: STYLE_COMMAND }, async ($, e) => {
     const asked = e.args.trim()
@@ -356,7 +392,13 @@ export const register: Register = on => {
     }
     const below = await next(e)
     const taken = await read($, snapshot)
-    hintedMode = modeFromHint(e.props.hint) ?? hintedMode
+    const left = modeFromHint(e.props.hint)
+    if (left !== null && left !== lastLabel) {
+      seenModes.add(left)
+      hintedMode = nextMode(left, { bypass: bypassAllowed || seenModes.has('bypassPermissions'), auto: seenModes.has('auto') })
+      seenModes.add(hintedMode)
+    }
+    lastLabel = left
     const pull = pullFor(hintedMode ?? (await read($, permissionMode)))
     if (taken === null) {
       return withSection(below, e.props.hint, 'dashboard', ORDER, null, pull)

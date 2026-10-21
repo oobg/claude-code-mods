@@ -1,7 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
+import type { TestBody } from 'claude-code/testing'
 
-import { launchPermissionMode } from '../hooks/footer'
+import { firstPermissionMode, launchPermissionMode, settingsStartMode, withSection } from '../hooks/footer'
 import { THEMES, buildLayout, buildLines, levelColor, parseResetTime, parseUsageLimits, resetLabel, compactTokens, duration, parseFableWeek } from '../hooks/lines'
 import type { Snapshot } from '../hooks/lines'
 
@@ -170,17 +171,17 @@ describe('dashboard', () => {
     await step({ turnId: 't', index: 0, model: 'claude-opus-5-5', effort: 'xhigh', messageCount: 1 })
 
     for (const surface of ['terminal', 'desktop'] as const) {
-      ui = await $.ui.mount({ plugin: 'dashboard', surface, ...HINT })
-      for (let i = 0; i < 50 && (await ui.find({ type: 'Text', text: ' xhigh' })) === undefined; i++) {
-        await ui.unmount()
-        ui = await $.ui.mount({ plugin: 'dashboard', surface, ...HINT })
+      let shown = await $.ui.mount({ plugin: 'dashboard', surface, ...HINT })
+      for (let i = 0; i < 50 && (await shown.find({ type: 'Text', text: ' xhigh' })) === undefined; i++) {
+        await shown.unmount()
+        shown = await $.ui.mount({ plugin: 'dashboard', surface, ...HINT })
       }
-      expect(await ui.find({ type: 'Text', text: '(shift+tab to cycle)' })).toBeDefined()
+      expect(await shown.find({ type: 'Text', text: '(shift+tab to cycle)' })).toBeDefined()
       // 기본 gauge 모양: 윗줄은 게이지와 옆의 흐린 정보, 아랫줄은 모델, 시간, 폴더, 브랜치, 이메일.
-      const exact = async (text: string) => (await ui.findAll({ type: 'Text', text })).find(f => f.text === text)
+      const exact = async (text: string) => (await shown.findAll({ type: 'Text', text })).find(f => f.text === text)
       expect(await exact('🧠 Opus')).toBeDefined()
       expect(await exact(' xhigh')).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /⏱/ })).toBeUndefined()
+      expect(await shown.find({ type: 'Text', text: /⏱/ })).toBeUndefined()
       expect(await exact('📁 repo')).toBeDefined()
       expect(await exact(' ⎇ main')).toBeDefined()
       expect((await exact('🔑 me@example.com'))?.props?.color).toBe(THEMES.everforest.muted)
@@ -188,15 +189,15 @@ describe('dashboard', () => {
       expect((await exact(' (325K/1.0M)'))?.props?.dimColor).toBe(true)
       expect((await exact('ctx '))?.props?.color).toBe(THEMES.everforest.text)
       expect((await exact('📁 repo'))?.props?.color).toBe(THEMES.everforest.primary)
-      expect(await ui.find({ type: 'Text', text: /\$12\.58/ })).toBeUndefined()
+      expect(await shown.find({ type: 'Text', text: /\$12\.58/ })).toBeUndefined()
       // 맨 앞 세로줄은 컨텍스트가 50% 아래면 모델 색이다.
-      expect((await ui.findAll({ type: 'Text', text: '▌' })).map(f => f.props?.color)).toEqual([
+      expect((await shown.findAll({ type: 'Text', text: '▌' })).map(f => f.props?.color)).toEqual([
         THEMES.everforest.accent,
         THEMES.everforest.accent,
       ])
-      const section = await ui.find({ key: 'oobg-footer:20:dashboard' })
+      const section = await shown.find({ key: 'oobg-footer:20:dashboard' })
       expect(section?.props?.marginLeft).toBe(-27)
-      await ui.unmount()
+      await shown.unmount()
     }
   })
 
@@ -292,72 +293,200 @@ describe('dashboard', () => {
     await ui.unmount()
   })
 
-  test('새 세션처럼 기록에 권한 모드가 없으면 훅 이벤트의 권한 모드로 당긴다', async ($, on) => {
+  // 새 세션. 설정은 출처별로 `sources`에 있는 것만 읽히고, 실행 줄은 `launch`, 기록 파일 내용은 `transcript`다(없으면 아직 없는 새 기록).
+  // `stored`는 저장소에 미리 있는 값이다. 돌려주는 목록에 모드가 저장소에 쓴 값이 쌓인다.
+  function newSession(
+    on: On,
+    sources: Partial<Record<string, object>>,
+    { launch = 'claude', transcript, stored }: { launch?: string; transcript?: string; stored?: Record<string, unknown> } = {},
+  ) {
+    const kept: Record<string, unknown> = { ...stored }
+    const written: Record<string, unknown> = {}
     mock.env(on, { HOME: '/home/me' })
-    mock.store(on)
+    on('store.get', (_$, e) => ({ value: kept[e.key] as never }))
+    on('store.set', (_$, e) => {
+      kept[e.key] = e.value
+      written[e.key] = e.value
+      return { value: undefined as never }
+    })
     mock.clock(on)
     on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1_000_000 }, rateLimits: [] } }))
     on('session.model', () => ({ value: 'claude-opus-5-5' }))
     on('session.cwd', () => ({ value: '/work/repo' }))
     on('session.root', () => ({ value: '/work/repo' }))
     on('session.id', () => ({ value: 'abc12345-0000' }))
+    on('settings.read', (_$, e) => ({ value: (sources[(e as { source: string }).source] ?? {}) as never }))
     on('fs.read', () => ({ value: '{}' }))
     on('fs.list', () => ({ value: [] as never }))
-    on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '' } as never }))
+    on('process.run', (_$, e) => {
+      const argv = (e as { argv: string[] }).argv
+      if (argv[0] === 'sh') {
+        return { value: { exitCode: 0, stdout: `${launch}\n`, stderr: '' } as never }
+      }
+      if (argv[0] === 'tail' && transcript !== undefined) {
+        return { value: { exitCode: 0, stdout: transcript, stderr: '' } as never }
+      }
+      return { value: { exitCode: 1, stdout: '', stderr: '' } as never }
+    })
     on('ui.render', { component: 'PromptHint' }, ($, e) => {
       const { Text } = $.ui.resolve(e)
       return <Text>engine-hint</Text>
     })
-    on('classic.SessionStart', () => ({}) as never)
     on('prompt.submit', () => ({ text: '' }) as never)
-    await $.classic.SessionStart({ source: 'startup', permission_mode: 'bypassPermissions' } as never)
+    return written
+  }
+
+  // 세션을 열고 메시지를 하나 보낸 뒤, 대시보드 구역을 왼쪽으로 당긴 폭을 읽는다.
+  async function pullAfterStart($: Parameters<TestBody>[0]) {
     await $.prompt.submit({ text: 'hi' } as never)
     let ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
     for (let i = 0; i < 50 && (await ui.find({ key: 'oobg-footer:20:dashboard' })) === undefined; i++) {
       await ui.unmount()
       ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...HINT })
     }
-    expect((await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft).toBe(-27)
+    const margin = (await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft
     await ui.unmount()
+    return margin
+  }
+
+  const withMode = (mode: string) => ({ permissions: { defaultMode: mode } })
+
+  for (const [mode, pull] of [
+    ['default', -19],
+    ['acceptEdits', -21],
+    ['plan', -17],
+    ['bypassPermissions', -27],
+    ['auto', -18],
+  ] as const) {
+    test(`새 세션에서 기록과 실행 인자에 권한 모드가 없으면 사용자 설정의 defaultMode(${mode})로 당긴다`, async ($, on) => {
+      newSession(on, { user: withMode(mode) })
+      expect(await pullAfterStart($)).toBe(pull)
+    })
+  }
+
+  test('설정 어디에도 defaultMode가 없고 배워 둔 시작 모드도 없으면 default로 당긴다', async ($, on) => {
+    newSession(on, { user: { permissions: { allow: [] } } })
+    expect(await pullAfterStart($)).toBe(-19)
   })
 
-  test('Shift+Tab으로 권한 모드를 바꾸면 안내 줄에 잠깐 뜬 모드 이름을 보고 그 폭만큼 당긴다. 이름이 사라져도 유지한다', async ($, on) => {
-    mock.env(on, { HOME: '/home/me' })
-    mock.store(on)
-    mock.clock(on)
-    on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1_000_000 }, rateLimits: [] } }))
-    on('session.model', () => ({ value: 'claude-opus-5-5' }))
-    on('session.cwd', () => ({ value: '/work/repo' }))
-    on('session.root', () => ({ value: '/work/repo' }))
-    on('session.id', () => ({ value: 'abc12345-0000' }))
-    on('fs.read', () => ({ value: '{}' }))
-    on('fs.list', () => ({ value: [] as never }))
-    on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '' } as never }))
-    on('ui.render', { component: 'PromptHint' }, ($, e) => {
-      const { Text } = $.ui.resolve(e)
-      return <Text>engine-hint</Text>
-    })
-    on('classic.SessionStart', () => ({}) as never)
-    on('prompt.submit', () => ({ text: '' }) as never)
-    await $.classic.SessionStart({ source: 'startup', permission_mode: 'bypassPermissions' } as never)
+  test('프로젝트 local, 프로젝트, 사용자 설정이 함께 있으면 앞선 출처의 defaultMode를 따른다', async ($, on) => {
+    newSession(on, { local: withMode('plan'), project: withMode('acceptEdits'), user: withMode('bypassPermissions') })
+    expect(await pullAfterStart($)).toBe(-17)
+  })
+
+  test('프로젝트 설정에 defaultMode가 없으면 사용자 설정을 따른다', async ($, on) => {
+    newSession(on, { project: { permissions: { allow: [] } }, user: withMode('acceptEdits') })
+    expect(await pullAfterStart($)).toBe(-21)
+  })
+
+  test('policy, flag 설정이 프로젝트 설정보다 앞선다', async ($, on) => {
+    newSession(on, { policy: withMode('plan'), flag: withMode('acceptEdits'), local: withMode('default') })
+    expect(await pullAfterStart($)).toBe(-17)
+  })
+
+  test('--settings로 넘긴 설정(flag)이 프로젝트 설정보다 앞선다', async ($, on) => {
+    newSession(on, { flag: withMode('acceptEdits'), local: withMode('plan') })
+    expect(await pullAfterStart($)).toBe(-21)
+  })
+
+  test('프로젝트 설정의 bypassPermissions는 엔진처럼 default로 본다', async ($, on) => {
+    newSession(on, { project: withMode('bypassPermissions') })
+    expect(await pullAfterStart($)).toBe(-19)
+  })
+
+  test('프로젝트 설정의 auto는 엔진처럼 없는 것으로 보고, 사용자 설정으로 넘어가지 않는다', async ($, on) => {
+    newSession(on, { local: withMode('auto'), user: withMode('plan') })
+    expect(await pullAfterStart($)).toBe(-19)
+  })
+
+  test('사용자 설정의 bypassPermissions와 auto는 그대로 따른다', () => {
+    expect(settingsStartMode('user', 'bypassPermissions')).toBe('bypassPermissions')
+    expect(settingsStartMode('policy', 'auto')).toBe('auto')
+    expect(settingsStartMode('local', 'plan')).toBe('plan')
+  })
+
+  test('실행 인자의 권한 모드가 설정의 defaultMode보다 앞선다', async ($, on) => {
+    newSession(on, { user: withMode('plan') }, { launch: 'claude --permission-mode acceptEdits' })
+    expect(await pullAfterStart($)).toBe(-21)
+  })
+
+  test('실행 인자도 설정도 없으면 지난 세션에서 배워 둔 시작 모드로 당긴다', async ($, on) => {
+    newSession(on, {}, { stored: { startMode: 'auto' } })
+    expect(await pullAfterStart($)).toBe(-18)
+  })
+
+  test('실행 인자도 설정도 없이 연 세션은 기록에 처음 적힌 모드를 시작 모드로 배운다', async ($, on) => {
+    const written = newSession(on, {}, { transcript: '{"type":"permission-mode","permissionMode":"auto"}\n{"permissionMode":"plan"}\n' })
+    await pullAfterStart($)
+    expect(written.startMode).toBe('auto')
+  })
+
+  test('실행 인자나 설정으로 연 세션에서는 시작 모드를 배우지 않는다', async ($, on) => {
+    const written = newSession(on, { user: withMode('plan') }, { transcript: '{"type":"permission-mode","permissionMode":"plan"}\n' })
+    await pullAfterStart($)
+    expect(written.startMode).toBeUndefined()
+  })
+
+  test('기록에서 처음 적힌 권한 모드를 읽는다', () => {
+    expect(firstPermissionMode('{"permissionMode":"auto"}\n{"permissionMode":"plan"}')).toBe('auto')
+    expect(firstPermissionMode('{}')).toBeNull()
+  })
+
+  // 안내 줄 문구를 차례로 바꿔 그리며 매번 당긴 폭을 읽는다.
+  async function pullsAlong($: Parameters<TestBody>[0], hints: string[]) {
     await $.prompt.submit({ text: 'hi' } as never)
-    const pullWith = async (hint: string) => {
-      const props = { ...HINT, props: { ...HINT.props, hint } }
-      let ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...props })
-      for (let i = 0; i < 50 && (await ui.find({ key: 'oobg-footer:20:dashboard' })) === undefined; i++) {
-        await ui.unmount()
-        ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...props })
-      }
-      const margin = (await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft
+    const props = (hint: string) => ({ ...HINT, props: { ...HINT.props, hint } })
+    let ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...props('(shift+tab to cycle)') })
+    for (let i = 0; i < 50 && (await ui.find({ key: 'oobg-footer:20:dashboard' })) === undefined; i++) {
       await ui.unmount()
-      return margin
+      ui = await $.ui.mount({ plugin: 'dashboard', surface: 'terminal', ...props('(shift+tab to cycle)') })
     }
-    expect(await pullWith('(shift+tab to cycle)')).toBe(-27)
-    expect(await pullWith('accept edits on (shift+tab to cycle) · ← for agents')).toBe(-21)
-    expect(await pullWith('(shift+tab to cycle) · ← for agents')).toBe(-21)
-    expect(await pullWith('plan mode on (shift+tab to cycle)')).toBe(-17)
-    expect(await pullWith('manual mode on · ← for agents')).toBe(-19)
-    expect(await pullWith('← for agents')).toBe(-19)
+    const pulls = [(await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft]
+    for (const hint of hints) {
+      await ui.redraw(props(hint).props)
+      pulls.push((await ui.find({ key: 'oobg-footer:20:dashboard' }))?.props?.marginLeft)
+    }
+    await ui.unmount()
+    return pulls
+  }
+
+  // Claude Code 2.1.306에서 실제로 받은 안내 줄 문구 순서. Shift+Tab을 누를 때마다 방금 떠난 모드 이름이 한 번 오고, 이어 이름 없는 문구가 온다.
+  test('Shift+Tab을 누르면 안내 줄에 뜬 이름(떠난 모드)의 다음 모드 폭으로 당긴다', async ($, on) => {
+    newSession(on, {}, { stored: { startMode: 'auto' } })
+    expect(
+      await pullsAlong($, [
+        'auto mode on (shift+tab to cycle)', // auto → default
+        '',
+        'manual mode on', // default → acceptEdits
+        '(shift+tab to cycle)',
+        'accept edits on (shift+tab to cycle)', // acceptEdits → plan
+        '(shift+tab to cycle)',
+        'plan mode on (shift+tab to cycle)', // plan → auto
+        '(shift+tab to cycle)',
+      ]),
+    ).toEqual([-18, -19, -19, -21, -21, -17, -17, -18, -18])
+  })
+
+  test('bypass로 띄운 세션에서는 plan 다음이 bypass다', async ($, on) => {
+    newSession(on, {}, { launch: 'claude --dangerously-skip-permissions' })
+    expect(
+      await pullsAlong($, [
+        'bypass permissions on (shift+tab to cycle)', // bypass → default (auto를 본 적 없음)
+        'manual mode on', // default → acceptEdits
+        'accept edits on (shift+tab to cycle)', // acceptEdits → plan
+        'plan mode on (shift+tab to cycle)', // plan → bypass
+      ]),
+    ).toEqual([-27, -19, -21, -17, -27])
+  })
+
+  test('auto도 bypass도 못 쓰는 세션에서는 plan 다음이 default다', async ($, on) => {
+    newSession(on, { user: withMode('plan') })
+    expect(await pullsAlong($, ['plan mode on (shift+tab to cycle)', '(shift+tab to cycle)'])).toEqual([-17, -19, -19])
+  })
+
+  test('default 모드처럼 안내 문구가 비어 있어도 첫 줄을 남겨 모드 표시를 덮지 않는다', () => {
+    const footer = withSection(null, '', 'dashboard', 20, { type: 'Text', props: {}, children: ['x'] }, 19)
+    expect('children' in footer ? footer.children?.[0] : undefined).toEqual({ type: 'Text', props: { dimColor: true }, children: [' '] })
   })
 
   test('실행 인자에서 처음 권한 모드를 읽는다', () => {
